@@ -47,6 +47,14 @@ npm run android
 docker compose -f infra/docker-compose.yml up -d
 ```
 
+6. (Optional) switch API to Postgres storage:
+
+```bash
+$env:STORAGE_BACKEND="postgres"
+$env:DATABASE_URL="postgres://fitness:fitness@localhost:5432/fitness_app"
+npm run dev:api
+```
+
 ## Mobile Features
 
 - Onboarding with profile + goal setup
@@ -60,6 +68,12 @@ docker compose -f infra/docker-compose.yml up -d
 
 Mobile sync uses `http://10.0.2.2:4000` on Android emulator (maps to your host machine).
 Run the API before logging workouts if you want immediate sync.
+For a physical Android device on the same Wi-Fi, set `EXPO_PUBLIC_API_BASE_URL` to your host IP, for example:
+
+```bash
+$env:EXPO_PUBLIC_API_BASE_URL="http://192.168.1.25:4000"
+npm run dev:mobile
+```
 
 ## API Endpoints
 
@@ -78,4 +92,9 @@ Run the API before logging workouts if you want immediate sync.
 
 ## Data Persistence
 
-API data is persisted locally at `apps/api/data/app-data.json`.
+`/health` now returns active storage backend info.
+
+- `file` backend persists at `apps/api/data/app-data.json`
+- `postgres` backend persists in `app_*` tables in your Postgres database
+
+If Postgres is configured but unavailable, the API automatically falls back to file storage.

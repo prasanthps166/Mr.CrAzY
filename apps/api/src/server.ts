@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { config } from "./config.js";
 import {
+  getStorageInfo,
   resetAppData,
   readAppData,
   type AppData,
@@ -114,9 +115,11 @@ export function createServer() {
   app.use(express.json());
 
   app.get("/health", (_req, res) => {
+    const storage = getStorageInfo();
     res.json({
       status: "ok",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      storage
     });
   });
 

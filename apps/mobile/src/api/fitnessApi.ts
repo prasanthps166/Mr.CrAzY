@@ -4,7 +4,11 @@ import { AppData, NutritionLog, ProgressEntry, SamplePlan, UserProfile, WorkoutL
 
 export type ServerSnapshot = Omit<AppData, "sync">;
 
+const apiBaseFromEnv = process.env.EXPO_PUBLIC_API_BASE_URL;
 const API_BASE_URL =
+  apiBaseFromEnv && apiBaseFromEnv.trim().length > 0
+    ? apiBaseFromEnv
+    :
   Platform.OS === "android"
     ? "http://10.0.2.2:4000"
     : "http://localhost:4000";
