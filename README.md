@@ -63,6 +63,17 @@ Run the API before logging workouts if you want immediate sync.
 ## API Endpoints
 
 - `GET /health`
+- `GET /api/v1/sync/snapshot`
+- `GET /api/v1/profile`
+- `PUT /api/v1/profile`
 - `GET /api/v1/plans/sample`
 - `GET /api/v1/workouts/logs`
 - `POST /api/v1/workouts/logs`
+- `GET /api/v1/nutrition/logs`
+- `PUT /api/v1/nutrition/logs/:date`
+- `GET /api/v1/progress/entries`
+- `POST /api/v1/progress/entries`
+
+## Data Persistence
+
+API data is persisted locally at `apps/api/data/app-data.json`.

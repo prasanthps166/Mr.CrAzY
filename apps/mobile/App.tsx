@@ -2,7 +2,14 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
-import { fetchSamplePlan, syncWorkoutLog } from "./src/api/fitnessApi";
+import {
+  fetchSamplePlan,
+  fetchSnapshot,
+  syncNutritionLog,
+  syncProfile,
+  syncProgressEntry,
+  syncWorkoutLog
+} from "./src/api/fitnessApi";
 import { TabBar } from "./src/components/TabBar";
 import { DashboardScreen } from "./src/screens/DashboardScreen";
 import { NutritionScreen } from "./src/screens/NutritionScreen";
@@ -27,6 +34,42 @@ function makeNutritionLog(date: string): NutritionLog {
 
 function createId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function mergeById<T extends { id: string }>(remoteItems: T[], localItems: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const remoteItem of remoteItems) {
+    map.set(remoteItem.id, remoteItem);
+  }
+  for (const localItem of localItems) {
+    map.set(localItem.id, localItem);
+  }
+  return Array.from(map.values());
+}
+
+function mergeSnapshot(local: AppData, remote: AppData): AppData {
+  const normalizedRemoteWorkouts = (remote.workouts ?? []).map((entry) => ({
+    ...entry,
+    createdAt: entry.createdAt ?? new Date().toISOString(),
+    syncedAt: entry.syncedAt ?? new Date().toISOString()
+  }));
+
+  return {
+    profile: local.profile ?? remote.profile ?? null,
+    workouts: mergeById(normalizedRemoteWorkouts, local.workouts).sort((a, b) => {
+      if (a.date === b.date) {
+        return b.createdAt.localeCompare(a.createdAt);
+      }
+      return b.date.localeCompare(a.date);
+    }),
+    nutritionByDate: {
+      ...(remote.nutritionByDate ?? {}),
+      ...local.nutritionByDate
+    },
+    progressEntries: mergeById(remote.progressEntries ?? [], local.progressEntries).sort((a, b) =>
+      b.date.localeCompare(a.date)
+    )
+  };
 }
 
 export default function App() {
@@ -71,7 +114,7 @@ export default function App() {
 
     let mounted = true;
 
-    fetchSamplePlan().then((plan) => {
+    fetchSamplePlan(goal).then((plan) => {
       if (mounted) {
         setSamplePlan(plan);
       }
@@ -89,11 +132,45 @@ export default function App() {
   );
   const unsyncedCount = appData.workouts.filter((entry) => !entry.syncedAt).length;
 
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    let mounted = true;
+
+    fetchSnapshot().then((snapshot) => {
+      if (!mounted || !snapshot) {
+        return;
+      }
+      setAppData((prev) => mergeSnapshot(prev, snapshot));
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || unsyncedCount === 0 || syncing) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void retryUnsyncedWorkouts();
+    }, 1200);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isReady, syncing, unsyncedCount]);
+
   function completeOnboarding(profile: UserProfile) {
     setAppData((prev) => ({
       ...prev,
       profile
     }));
+    void syncProfile(profile);
   }
 
   function markWorkoutSynced(workoutId: string) {
@@ -156,6 +233,7 @@ export default function App() {
         [nextLog.date]: nextLog
       }
     }));
+    void syncNutritionLog(nextLog);
   }
 
   function handleAddProgress(draft: ProgressDraft) {
@@ -167,6 +245,10 @@ export default function App() {
       waistCm: draft.waistCm
     };
 
+    const nextProfile = appData.profile
+      ? { ...appData.profile, currentWeightKg: draft.weightKg }
+      : null;
+
     setAppData((prev) => ({
       ...prev,
       profile: prev.profile
@@ -174,6 +256,11 @@ export default function App() {
         : prev.profile,
       progressEntries: [entry, ...prev.progressEntries]
     }));
+
+    if (nextProfile) {
+      void syncProfile(nextProfile);
+    }
+    void syncProgressEntry(entry);
   }
 
   if (!isReady) {

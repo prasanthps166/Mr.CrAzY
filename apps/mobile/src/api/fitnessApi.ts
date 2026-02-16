@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 
-import { SamplePlan, WorkoutLog } from "../types";
+import { AppData, NutritionLog, ProgressEntry, SamplePlan, UserProfile, WorkoutLog } from "../types";
 
 const API_BASE_URL =
   Platform.OS === "android"
@@ -29,10 +29,13 @@ export async function syncWorkoutLog(log: WorkoutLog): Promise<boolean> {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
+        id: log.id,
         date: log.date,
         workoutType: log.workoutType,
         durationMinutes: log.durationMinutes,
-        notes: log.notes
+        notes: log.notes,
+        createdAt: log.createdAt,
+        syncedAt: log.syncedAt
       })
     });
 
@@ -42,9 +45,10 @@ export async function syncWorkoutLog(log: WorkoutLog): Promise<boolean> {
   }
 }
 
-export async function fetchSamplePlan(): Promise<SamplePlan | null> {
+export async function fetchSamplePlan(goal?: UserProfile["goal"]): Promise<SamplePlan | null> {
   try {
-    const response = await fetchWithTimeout("/api/v1/plans/sample", {
+    const suffix = goal ? `?goal=${goal}` : "";
+    const response = await fetchWithTimeout(`/api/v1/plans/sample${suffix}`, {
       method: "GET"
     });
 
@@ -58,3 +62,61 @@ export async function fetchSamplePlan(): Promise<SamplePlan | null> {
   }
 }
 
+export async function fetchSnapshot(): Promise<AppData | null> {
+  try {
+    const response = await fetchWithTimeout("/api/v1/sync/snapshot", {
+      method: "GET"
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as AppData;
+  } catch (_error) {
+    return null;
+  }
+}
+
+export async function syncProfile(profile: UserProfile): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout("/api/v1/profile", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(profile)
+    });
+    return response.ok;
+  } catch (_error) {
+    return false;
+  }
+}
+
+export async function syncNutritionLog(log: NutritionLog): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout(`/api/v1/nutrition/logs/${log.date}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(log)
+    });
+    return response.ok;
+  } catch (_error) {
+    return false;
+  }
+}
+
+export async function syncProgressEntry(entry: ProgressEntry): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout("/api/v1/progress/entries", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(entry)
+    });
+    return response.ok;
+  } catch (_error) {
+    return false;
+  }
+}

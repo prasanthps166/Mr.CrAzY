@@ -13,4 +13,4 @@ apps/mobile/node_modules/
 apps/mobile/dist/
 apps/mobile/web-build/
 apps/mobile/package-lock.json
-
+apps/api/data/*.json
