@@ -61,6 +61,12 @@ npm run dev:api
 npm run test:api
 ```
 
+8. Run full validation locally (same as CI):
+
+```bash
+npm run check
+```
+
 ## Mobile Features
 
 - Onboarding with profile + goal setup
