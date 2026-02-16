@@ -55,6 +55,12 @@ $env:DATABASE_URL="postgres://fitness:fitness@localhost:5432/fitness_app"
 npm run dev:api
 ```
 
+7. Run API tests:
+
+```bash
+npm run test:api
+```
+
 ## Mobile Features
 
 - Onboarding with profile + goal setup
@@ -105,3 +111,4 @@ Android 13+ asks for notification permission the first time reminders are enable
 - `postgres` backend persists in `app_*` tables in your Postgres database
 
 If Postgres is configured but unavailable, the API automatically falls back to file storage.
+You can override file path using `FILE_STORAGE_PATH`.

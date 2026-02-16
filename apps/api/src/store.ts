@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { isAbsolute, resolve } from "node:path";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -65,7 +66,10 @@ export function createDefaultAppData(): AppData {
 
 type StorageBackend = "file" | "postgres";
 
-const dataFilePath = fileURLToPath(new URL("../data/app-data.json", import.meta.url));
+const defaultDataFilePath = fileURLToPath(new URL("../data/app-data.json", import.meta.url));
+const dataFilePath = config.FILE_STORAGE_PATH
+  ? (isAbsolute(config.FILE_STORAGE_PATH) ? config.FILE_STORAGE_PATH : resolve(process.cwd(), config.FILE_STORAGE_PATH))
+  : defaultDataFilePath;
 
 let activeBackend: StorageBackend = config.STORAGE_BACKEND;
 let fallbackReason: string | null = null;
@@ -436,4 +440,3 @@ export async function resetAppData(): Promise<AppData> {
 
   return resetFileData();
 }
-

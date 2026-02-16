@@ -12,7 +12,8 @@
     "dev:mobile": "npm run start --workspace @fitness/mobile",
     "android": "npm run android --workspace @fitness/mobile",
     "build": "npm run build --workspace @fitness/shared && npm run build --workspace @fitness/api",
-    "typecheck": "npm run typecheck --workspace @fitness/shared && npm run typecheck --workspace @fitness/api && npm run typecheck --workspace @fitness/mobile"
+    "typecheck": "npm run typecheck --workspace @fitness/shared && npm run typecheck --workspace @fitness/api && npm run typecheck --workspace @fitness/mobile",
+    "test:api": "npm run test --workspace @fitness/api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
