@@ -1,13 +1,22 @@
 import cors from "cors";
 import express from "express";
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import type { Request, Response } from "express";
 import { z } from "zod";
 
 import { config } from "./config.js";
 import {
+  createAuthSession,
+  createAuthUser,
+  deleteAuthSession,
+  getAuthSessionUserId,
+  getAuthUserByEmail,
+  getAuthUserById,
   getStorageInfo,
   resetAppData,
   readAppData,
   type AppData,
+  type AuthUser,
   type FitnessGoal,
   type WorkoutLog as StoredWorkoutLog,
   writeAppData
@@ -51,6 +60,16 @@ const progressEntrySchema = z.object({
   weightKg: z.number().positive().max(220),
   bodyFatPct: z.number().min(2).max(70).optional(),
   waistCm: z.number().min(40).max(180).optional()
+});
+
+const authRegisterSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6).max(120)
+});
+
+const authLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1).max(120)
 });
 
 const goalPlanMap: Record<FitnessGoal, Array<{ day: string; focus: string; durationMinutes: number }>> = {
@@ -104,6 +123,70 @@ function sortData(data: AppData): AppData {
   };
 }
 
+function createUserId(): string {
+  return `usr_${Date.now()}_${randomBytes(5).toString("hex")}`;
+}
+
+function createAuthToken(): string {
+  return randomBytes(24).toString("hex");
+}
+
+function hashPassword(password: string, salt?: string): string {
+  const resolvedSalt = salt ?? randomBytes(16).toString("hex");
+  const hash = scryptSync(password, resolvedSalt, 32).toString("hex");
+  return `${resolvedSalt}:${hash}`;
+}
+
+function verifyPassword(password: string, passwordHash: string): boolean {
+  const [salt, storedHash] = passwordHash.split(":");
+  if (!salt || !storedHash) {
+    return false;
+  }
+
+  const calculatedHash = scryptSync(password, salt, 32).toString("hex");
+  const storedBytes = Buffer.from(storedHash, "hex");
+  const calculatedBytes = Buffer.from(calculatedHash, "hex");
+
+  if (storedBytes.length !== calculatedBytes.length) {
+    return false;
+  }
+
+  return timingSafeEqual(storedBytes, calculatedBytes);
+}
+
+type AuthMode = "allow-local-fallback" | "require-token";
+
+async function resolveRequestUserId(req: Request, res: Response, mode: AuthMode): Promise<string | null> {
+  const authHeader = req.header("authorization");
+
+  if (!authHeader) {
+    if (mode === "allow-local-fallback") {
+      return "local-user";
+    }
+    res.status(401).json({ message: "Missing authorization token" });
+    return null;
+  }
+
+  if (!authHeader.startsWith("Bearer ")) {
+    res.status(401).json({ message: "Invalid authorization format" });
+    return null;
+  }
+
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) {
+    res.status(401).json({ message: "Missing authorization token" });
+    return null;
+  }
+
+  const userId = await getAuthSessionUserId(token);
+  if (!userId) {
+    res.status(401).json({ message: "Session is invalid or expired" });
+    return null;
+  }
+
+  return userId;
+}
+
 export function createServer() {
   const app = express();
 
@@ -123,13 +206,135 @@ export function createServer() {
     });
   });
 
+  app.post("/api/v1/auth/register", async (req, res) => {
+    const parsed = authRegisterSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      res.status(400).json({
+        message: "Invalid register payload",
+        errors: parsed.error.flatten()
+      });
+      return;
+    }
+
+    const email = parsed.data.email.toLowerCase();
+    const userId = createUserId();
+    const createdAt = new Date().toISOString();
+    const authUser: AuthUser = {
+      id: userId,
+      email,
+      passwordHash: hashPassword(parsed.data.password),
+      createdAt
+    };
+
+    const created = await createAuthUser(authUser);
+    if (!created.ok) {
+      res.status(409).json({
+        message: created.reason ?? "Registration failed"
+      });
+      return;
+    }
+
+    await resetAppData(userId);
+
+    const token = createAuthToken();
+    await createAuthSession(token, userId);
+
+    res.status(201).json({
+      token,
+      user: {
+        id: userId,
+        email,
+        createdAt
+      }
+    });
+  });
+
+  app.post("/api/v1/auth/login", async (req, res) => {
+    const parsed = authLoginSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      res.status(400).json({
+        message: "Invalid login payload",
+        errors: parsed.error.flatten()
+      });
+      return;
+    }
+
+    const email = parsed.data.email.toLowerCase();
+    const authUser = await getAuthUserByEmail(email);
+
+    if (!authUser || !verifyPassword(parsed.data.password, authUser.passwordHash)) {
+      res.status(401).json({
+        message: "Invalid email or password"
+      });
+      return;
+    }
+
+    const token = createAuthToken();
+    await createAuthSession(token, authUser.id);
+
+    res.json({
+      token,
+      user: {
+        id: authUser.id,
+        email: authUser.email,
+        createdAt: authUser.createdAt
+      }
+    });
+  });
+
+  app.get("/api/v1/auth/me", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "require-token");
+    if (!userId) {
+      return;
+    }
+
+    const user = await getAuthUserById(userId);
+    if (!user) {
+      res.status(401).json({
+        message: "Session is invalid"
+      });
+      return;
+    }
+
+    res.json({
+      user
+    });
+  });
+
+  app.post("/api/v1/auth/logout", async (req, res) => {
+    const authHeader = req.header("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(204).send();
+      return;
+    }
+
+    const token = authHeader.slice("Bearer ".length).trim();
+    if (token) {
+      await deleteAuthSession(token);
+    }
+
+    res.status(204).send();
+  });
+
   app.get("/api/v1/sync/snapshot", async (_req, res) => {
-    const data = await readAppData();
+    const userId = await resolveRequestUserId(_req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
+    const data = await readAppData(userId);
     res.json(sortData(data));
   });
 
-  app.delete("/api/v1/sync/data", async (_req, res) => {
-    const data = await resetAppData();
+  app.delete("/api/v1/sync/data", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
+    const data = await resetAppData(userId);
     res.json({
       message: "Data reset complete",
       data
@@ -137,6 +342,11 @@ export function createServer() {
   });
 
   app.put("/api/v1/profile", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
     const parsed = profileSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
@@ -146,19 +356,29 @@ export function createServer() {
       return;
     }
 
-    const data = await readAppData();
+    const data = await readAppData(userId);
     data.profile = parsed.data;
-    await writeAppData(data);
+    await writeAppData(data, userId);
     res.json({ data: data.profile });
   });
 
-  app.get("/api/v1/profile", async (_req, res) => {
-    const data = await readAppData();
+  app.get("/api/v1/profile", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
+    const data = await readAppData(userId);
     res.json({ data: data.profile });
   });
 
   app.get("/api/v1/plans/sample", async (req, res) => {
-    const data = await readAppData();
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
+    const data = await readAppData(userId);
     const goalQuery = req.query.goal;
     const goal =
       goalQuery === "lose_weight" || goalQuery === "gain_muscle" || goalQuery === "maintain"
@@ -172,8 +392,13 @@ export function createServer() {
     });
   });
 
-  app.get("/api/v1/workouts/logs", async (_req, res) => {
-    const data = sortData(await readAppData());
+  app.get("/api/v1/workouts/logs", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
+    const data = sortData(await readAppData(userId));
     res.json({
       count: data.workouts.length,
       data: data.workouts
@@ -181,6 +406,11 @@ export function createServer() {
   });
 
   app.post("/api/v1/workouts/logs", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
     const parsed = workoutLogSchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -193,7 +423,7 @@ export function createServer() {
 
     const nowIso = new Date().toISOString();
     const payload = parsed.data;
-    const data = await readAppData();
+    const data = await readAppData(userId);
 
     const normalizedWorkout: StoredWorkoutLog = {
       ...payload,
@@ -202,7 +432,7 @@ export function createServer() {
     };
 
     replaceOrPushWorkout(data, normalizedWorkout);
-    await writeAppData(sortData(data));
+    await writeAppData(sortData(data), userId);
 
     res.status(201).json({
       message: "Workout logged",
@@ -211,11 +441,16 @@ export function createServer() {
   });
 
   app.delete("/api/v1/workouts/logs/:id", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
     const id = req.params.id;
-    const data = await readAppData();
+    const data = await readAppData(userId);
     const initialCount = data.workouts.length;
     data.workouts = data.workouts.filter((entry) => entry.id !== id);
-    await writeAppData(sortData(data));
+    await writeAppData(sortData(data), userId);
 
     res.json({
       message: initialCount === data.workouts.length ? "Workout not found" : "Workout deleted",
@@ -223,8 +458,13 @@ export function createServer() {
     });
   });
 
-  app.get("/api/v1/nutrition/logs", async (_req, res) => {
-    const data = await readAppData();
+  app.get("/api/v1/nutrition/logs", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
+    const data = await readAppData(userId);
     res.json({
       count: Object.keys(data.nutritionByDate).length,
       data: data.nutritionByDate
@@ -232,6 +472,11 @@ export function createServer() {
   });
 
   app.put("/api/v1/nutrition/logs/:date", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
     const date = req.params.date;
     const parsed = nutritionLogSchema.safeParse({
       ...req.body,
@@ -246,9 +491,9 @@ export function createServer() {
       return;
     }
 
-    const data = await readAppData();
+    const data = await readAppData(userId);
     data.nutritionByDate[date] = parsed.data;
-    await writeAppData(data);
+    await writeAppData(data, userId);
 
     res.json({
       message: "Nutrition updated",
@@ -257,6 +502,11 @@ export function createServer() {
   });
 
   app.delete("/api/v1/nutrition/logs/:date", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
     const date = req.params.date;
     const dateParsed = z.string().date().safeParse(date);
 
@@ -267,11 +517,11 @@ export function createServer() {
       return;
     }
 
-    const data = await readAppData();
+    const data = await readAppData(userId);
     const hadValue = Object.hasOwn(data.nutritionByDate, date);
     if (hadValue) {
       delete data.nutritionByDate[date];
-      await writeAppData(data);
+      await writeAppData(data, userId);
     }
 
     res.json({
@@ -280,8 +530,13 @@ export function createServer() {
     });
   });
 
-  app.get("/api/v1/progress/entries", async (_req, res) => {
-    const data = sortData(await readAppData());
+  app.get("/api/v1/progress/entries", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
+    const data = sortData(await readAppData(userId));
     res.json({
       count: data.progressEntries.length,
       data: data.progressEntries
@@ -289,6 +544,11 @@ export function createServer() {
   });
 
   app.post("/api/v1/progress/entries", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
     const parsed = progressEntrySchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -299,9 +559,9 @@ export function createServer() {
       return;
     }
 
-    const data = await readAppData();
+    const data = await readAppData(userId);
     replaceOrPushProgress(data, parsed.data);
-    await writeAppData(sortData(data));
+    await writeAppData(sortData(data), userId);
 
     res.status(201).json({
       message: "Progress logged",
@@ -310,11 +570,16 @@ export function createServer() {
   });
 
   app.delete("/api/v1/progress/entries/:id", async (req, res) => {
+    const userId = await resolveRequestUserId(req, res, "allow-local-fallback");
+    if (!userId) {
+      return;
+    }
+
     const id = req.params.id;
-    const data = await readAppData();
+    const data = await readAppData(userId);
     const initialCount = data.progressEntries.length;
     data.progressEntries = data.progressEntries.filter((entry) => entry.id !== id);
-    await writeAppData(sortData(data));
+    await writeAppData(sortData(data), userId);
 
     res.json({
       message: initialCount === data.progressEntries.length ? "Progress not found" : "Progress deleted",

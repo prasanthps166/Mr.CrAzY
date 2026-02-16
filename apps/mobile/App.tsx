@@ -4,11 +4,16 @@ import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-n
 
 import {
   clearRemoteData,
+  fetchMe,
   deleteNutritionLog,
   deleteProgressEntry,
   deleteWorkoutLog,
   fetchSamplePlan,
   fetchSnapshot,
+  loginWithEmail,
+  logoutAuth,
+  registerWithEmail,
+  setAuthToken,
   syncNutritionLog,
   syncProfile,
   syncProgressEntry,
@@ -20,6 +25,7 @@ import { NutritionScreen } from "./src/screens/NutritionScreen";
 import { OnboardingScreen } from "./src/screens/OnboardingScreen";
 import { ProgressScreen } from "./src/screens/ProgressScreen";
 import { AccountScreen } from "./src/screens/AccountScreen";
+import { AuthScreen } from "./src/screens/AuthScreen";
 import { WorkoutScreen } from "./src/screens/WorkoutScreen";
 import { colors, spacing } from "./src/theme";
 import { createEmptyAppData, emptyAppData, loadAppData, saveAppData } from "./src/storage/appStore";
@@ -67,7 +73,7 @@ function mergeById<T extends { id: string }>(remoteItems: T[], localItems: T[]):
   return Array.from(map.values());
 }
 
-function mergeSnapshot(local: AppData, remote: Omit<AppData, "sync" | "settings">): AppData {
+function mergeSnapshot(local: AppData, remote: Omit<AppData, "auth" | "sync" | "settings">): AppData {
   const deletedWorkoutIds = new Set(local.sync.deletedWorkoutIds);
   const deletedNutritionDates = new Set(local.sync.deletedNutritionDates);
   const deletedProgressIds = new Set(local.sync.deletedProgressIds);
@@ -93,6 +99,7 @@ function mergeSnapshot(local: AppData, remote: Omit<AppData, "sync" | "settings"
   const localProgress = local.progressEntries.filter((entry) => !deletedProgressIds.has(entry.id));
 
   return {
+    auth: local.auth,
     profile: local.profile ?? remote.profile ?? null,
     workouts: mergeById(normalizedRemoteWorkouts, localWorkouts).sort((a, b) => {
       if (a.date === b.date) {
@@ -141,12 +148,33 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
 
-    loadAppData().then((loaded) => {
+    void (async () => {
+      const loaded = await loadAppData();
+      setAuthToken(loaded.auth.token);
+
+      let nextData = loaded;
+      if (loaded.auth.token) {
+        const me = await fetchMe();
+        if (me) {
+          nextData = {
+            ...loaded,
+            auth: {
+              userId: me.id,
+              email: me.email,
+              token: loaded.auth.token
+            }
+          };
+        } else {
+          setAuthToken(null);
+          nextData = createEmptyAppData();
+        }
+      }
+
       if (mounted) {
-        setAppData(loaded);
+        setAppData(nextData);
         setIsReady(true);
       }
-    });
+    })();
 
     return () => {
       mounted = false;
@@ -381,8 +409,100 @@ export default function App() {
     }));
   }
 
+  async function applyAuthSession(user: { id: string; email: string }, token: string | null) {
+    const auth = {
+      userId: user.id,
+      email: user.email,
+      token
+    };
+
+    setSamplePlan(null);
+    setActiveTab("dashboard");
+    setAuthToken(token);
+    setAppData({
+      ...createEmptyAppData(),
+      auth
+    });
+
+    const snapshot = await fetchSnapshot();
+    if (!snapshot) {
+      return;
+    }
+
+    setAppData((prev) => ({
+      ...mergeSnapshot(prev, snapshot),
+      sync: {
+        ...prev.sync,
+        lastSuccessfulSyncAt: new Date().toISOString()
+      }
+    }));
+  }
+
+  async function handleLogin(email: string, password: string): Promise<{ ok: boolean; message?: string }> {
+    const result = await loginWithEmail(email, password);
+    if (!result) {
+      return {
+        ok: false,
+        message: "Invalid email or password."
+      };
+    }
+
+    await applyAuthSession(
+      {
+        id: result.user.id,
+        email: result.user.email
+      },
+      result.token
+    );
+
+    return { ok: true };
+  }
+
+  async function handleRegister(email: string, password: string): Promise<{ ok: boolean; message?: string }> {
+    const result = await registerWithEmail(email, password);
+    if (!result) {
+      return {
+        ok: false,
+        message: "Registration failed. Try a different email."
+      };
+    }
+
+    await applyAuthSession(
+      {
+        id: result.user.id,
+        email: result.user.email
+      },
+      result.token
+    );
+
+    return { ok: true };
+  }
+
+  function handleContinueGuest() {
+    setSamplePlan(null);
+    setActiveTab("dashboard");
+    setAuthToken(null);
+    setAppData((prev) => ({
+      ...prev,
+      auth: {
+        userId: "local-user",
+        email: null,
+        token: null
+      }
+    }));
+  }
+
+  async function handleLogout() {
+    await cancelReminderById(appDataRef.current.settings.reminderNotificationId);
+    await logoutAuth();
+    setAuthToken(null);
+    setSamplePlan(null);
+    setActiveTab("dashboard");
+    setAppData(createEmptyAppData());
+  }
+
   useEffect(() => {
-    if (!isReady) {
+    if (!isReady || !appData.auth.userId) {
       return;
     }
 
@@ -404,10 +524,10 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, [isReady]);
+  }, [isReady, appData.auth.userId]);
 
   useEffect(() => {
-    if (!isReady || pendingSummary.total === 0 || syncing) {
+    if (!isReady || !appData.auth.userId || pendingSummary.total === 0 || syncing) {
       return;
     }
 
@@ -418,19 +538,24 @@ export default function App() {
     return () => {
       clearTimeout(timer);
     };
-  }, [isReady, syncing, pendingSummary.total]);
+  }, [isReady, syncing, pendingSummary.total, appData.auth.userId]);
 
   async function completeOnboarding(profile: UserProfile) {
+    const profileForUser = {
+      ...profile,
+      id: appDataRef.current.auth.userId ?? profile.id
+    };
+
     setAppData((prev) => ({
       ...prev,
-      profile,
+      profile: profileForUser,
       sync: {
         ...prev.sync,
         profilePending: true
       }
     }));
 
-    const synced = await syncProfile(profile);
+    const synced = await syncProfile(profileForUser);
     if (synced) {
       setProfilePending(false);
     } else {
@@ -693,12 +818,17 @@ export default function App() {
   }
 
   async function handleSaveProfile(profile: UserProfile) {
+    const profileForUser = {
+      ...profile,
+      id: appDataRef.current.auth.userId ?? profile.id
+    };
+
     setAppData((prev) => ({
       ...prev,
-      profile
+      profile: profileForUser
     }));
     setProfilePending(true);
-    const synced = await syncProfile(profile);
+    const synced = await syncProfile(profileForUser);
     setProfilePending(!synced);
   }
 
@@ -742,6 +872,7 @@ export default function App() {
   }
 
   async function handleResetAllData() {
+    const activeAuth = appDataRef.current.auth;
     await cancelReminderById(appDataRef.current.settings.reminderNotificationId);
 
     setSyncing(true);
@@ -753,7 +884,10 @@ export default function App() {
 
     setSamplePlan(null);
     setActiveTab("dashboard");
-    setAppData(createEmptyAppData());
+    setAppData({
+      ...createEmptyAppData(),
+      auth: activeAuth
+    });
   }
 
   function handleSyncNow() {
@@ -777,7 +911,13 @@ export default function App() {
       <View style={styles.orbTopLeft} />
       <View style={styles.orbBottomRight} />
 
-      {!appData.profile ? (
+      {!appData.auth.userId ? (
+        <AuthScreen
+          onLogin={handleLogin}
+          onRegister={handleRegister}
+          onContinueGuest={handleContinueGuest}
+        />
+      ) : !appData.profile ? (
         <OnboardingScreen onComplete={completeOnboarding} />
       ) : (
         <View style={styles.appContent}>
@@ -829,11 +969,14 @@ export default function App() {
             {activeTab === "account" ? (
               <AccountScreen
                 profile={appData.profile}
+                authEmail={appData.auth.email}
+                isGuestMode={appData.auth.userId === "local-user" && !appData.auth.token}
                 pendingSummary={pendingSummary}
                 syncing={syncing}
                 reminderSettings={appData.settings}
                 onSaveProfile={handleSaveProfile}
                 onSaveReminderSettings={handleSaveReminderSettings}
+                onLogout={handleLogout}
                 onSyncNow={handleSyncNow}
                 onResetAllData={handleResetAllData}
               />

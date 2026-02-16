@@ -9,6 +9,8 @@ import { calculateTargets } from "../utils/targets";
 
 interface AccountScreenProps {
   profile: UserProfile;
+  authEmail: string | null;
+  isGuestMode: boolean;
   pendingSummary: {
     total: number;
     workouts: number;
@@ -21,6 +23,7 @@ interface AccountScreenProps {
   reminderSettings: Pick<AppSettings, "dailyReminderEnabled" | "dailyReminderTime">;
   onSaveProfile: (profile: UserProfile) => Promise<void>;
   onSaveReminderSettings: (settings: { enabled: boolean; time: string }) => Promise<void>;
+  onLogout: () => Promise<void>;
   onSyncNow: () => void;
   onResetAllData: () => void;
 }
@@ -34,11 +37,14 @@ function toDateLabel(iso: string | null): string {
 
 export function AccountScreen({
   profile,
+  authEmail,
+  isGuestMode,
   pendingSummary,
   syncing,
   reminderSettings,
   onSaveProfile,
   onSaveReminderSettings,
+  onLogout,
   onSyncNow,
   onResetAllData
 }: AccountScreenProps) {
@@ -55,6 +61,7 @@ export function AccountScreen({
   const [reminderTimeText, setReminderTimeText] = useState(reminderSettings.dailyReminderTime);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [savingReminder, setSavingReminder] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     setName(profile.name);
@@ -167,10 +174,38 @@ export function AccountScreen({
     );
   }
 
+  function requestLogout() {
+    Alert.alert(
+      "Sign out",
+      "You will be signed out on this device.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign out",
+          style: "destructive",
+          onPress: () => {
+            setLoggingOut(true);
+            void onLogout().finally(() => {
+              setLoggingOut(false);
+            });
+          }
+        }
+      ]
+    );
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <Text style={styles.title}>Account</Text>
       <Text style={styles.subtitle}>Update profile, targets, and sync state.</Text>
+
+      <View style={styles.authCard}>
+        <Text style={styles.authLabel}>Signed in as</Text>
+        <Text style={styles.authValue}>{isGuestMode ? "Offline mode" : authEmail ?? "Unknown user"}</Text>
+        <Pressable style={styles.logoutButton} onPress={requestLogout} disabled={loggingOut}>
+          <Text style={styles.logoutText}>{loggingOut ? "Signing out..." : "Sign Out"}</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.syncCard}>
         <Text style={styles.syncTitle}>Sync Status</Text>
@@ -280,6 +315,35 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl + 8
+  },
+  authCard: {
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: spacing.md,
+    marginBottom: spacing.md
+  },
+  authLabel: {
+    color: colors.inkMuted,
+    fontWeight: "700"
+  },
+  authValue: {
+    color: colors.inkStrong,
+    fontWeight: "800",
+    marginTop: spacing.xs
+  },
+  logoutButton: {
+    marginTop: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    alignItems: "center",
+    paddingVertical: spacing.sm
+  },
+  logoutText: {
+    color: colors.danger,
+    fontWeight: "700"
   },
   reminderCard: {
     marginTop: spacing.lg,

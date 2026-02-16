@@ -6,6 +6,11 @@ const STORAGE_KEY = "@fittrack/app-data/v1";
 
 export function createEmptyAppData(): AppData {
   return {
+    auth: {
+      userId: null,
+      email: null,
+      token: null
+    },
     profile: null,
     workouts: [],
     nutritionByDate: {},
@@ -31,6 +36,11 @@ export const emptyAppData: AppData = createEmptyAppData();
 
 function sanitize(input: Partial<AppData>): AppData {
   return {
+    auth: {
+      userId: input.auth?.userId ?? null,
+      email: input.auth?.email ?? null,
+      token: input.auth?.token ?? null
+    },
     profile: input.profile ?? null,
     workouts: Array.isArray(input.workouts) ? input.workouts : [],
     nutritionByDate: input.nutritionByDate ?? {},

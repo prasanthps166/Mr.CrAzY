@@ -206,3 +206,148 @@ test("progress post/delete and snapshot consistency works", async () => {
   assert.equal(snapshotAfterDelete.status, 200);
   assert.equal(snapshotAfterDelete.body.progressEntries.length, 0);
 });
+
+test("auth register/login/me works", async () => {
+  const unique = Date.now().toString(36);
+  const email = `tester_${unique}@example.com`;
+  const password = "password123";
+
+  const registerResult = await requestJson<{
+    token: string;
+    user: {
+      id: string;
+      email: string;
+    };
+  }>("/api/v1/auth/register", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ email, password })
+  });
+
+  assert.equal(registerResult.status, 201);
+  assert.equal(registerResult.body.user.email, email);
+  assert.equal(typeof registerResult.body.token, "string");
+
+  const loginResult = await requestJson<{
+    token: string;
+    user: {
+      id: string;
+      email: string;
+    };
+  }>("/api/v1/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ email, password })
+  });
+
+  assert.equal(loginResult.status, 200);
+  assert.equal(loginResult.body.user.email, email);
+  assert.equal(typeof loginResult.body.token, "string");
+
+  const meResult = await requestJson<{
+    user: {
+      id: string;
+      email: string;
+    };
+  }>("/api/v1/auth/me", {
+    headers: {
+      Authorization: `Bearer ${loginResult.body.token}`
+    }
+  });
+
+  assert.equal(meResult.status, 200);
+  assert.equal(meResult.body.user.email, email);
+});
+
+test("auth users are data-isolated", async () => {
+  const unique = Date.now().toString(36);
+  const password = "password123";
+
+  const registerA = await requestJson<{
+    token: string;
+    user: {
+      id: string;
+      email: string;
+    };
+  }>("/api/v1/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: `a_${unique}@example.com`, password })
+  });
+  assert.equal(registerA.status, 201);
+
+  const registerB = await requestJson<{
+    token: string;
+    user: {
+      id: string;
+      email: string;
+    };
+  }>("/api/v1/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: `b_${unique}@example.com`, password })
+  });
+  assert.equal(registerB.status, 201);
+
+  const profileA = {
+    id: "profile-a",
+    name: "User A",
+    age: 30,
+    heightCm: 175,
+    currentWeightKg: 70,
+    goal: "maintain",
+    dailyCalorieTarget: 2400,
+    proteinTargetGrams: 130
+  };
+
+  const profileB = {
+    id: "profile-b",
+    name: "User B",
+    age: 26,
+    heightCm: 168,
+    currentWeightKg: 62,
+    goal: "lose_weight",
+    dailyCalorieTarget: 1900,
+    proteinTargetGrams: 110
+  };
+
+  const putProfileA = await requestJson<{ data: { name: string } }>("/api/v1/profile", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${registerA.body.token}`
+    },
+    body: JSON.stringify(profileA)
+  });
+  assert.equal(putProfileA.status, 200);
+
+  const putProfileB = await requestJson<{ data: { name: string } }>("/api/v1/profile", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${registerB.body.token}`
+    },
+    body: JSON.stringify(profileB)
+  });
+  assert.equal(putProfileB.status, 200);
+
+  const snapshotA = await requestJson<{ profile: { name: string } | null }>("/api/v1/sync/snapshot", {
+    headers: {
+      Authorization: `Bearer ${registerA.body.token}`
+    }
+  });
+  const snapshotB = await requestJson<{ profile: { name: string } | null }>("/api/v1/sync/snapshot", {
+    headers: {
+      Authorization: `Bearer ${registerB.body.token}`
+    }
+  });
+
+  assert.equal(snapshotA.status, 200);
+  assert.equal(snapshotB.status, 200);
+  assert.equal(snapshotA.body.profile?.name, "User A");
+  assert.equal(snapshotB.body.profile?.name, "User B");
+});

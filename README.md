@@ -69,6 +69,8 @@ npm run check
 
 ## Mobile Features
 
+- Email/password auth with per-user cloud sync
+- Guest offline mode (`local-user`) for local-only tracking
 - Onboarding with profile + goal setup
 - Dashboard with streak, weekly volume, calories, and dynamic plan
 - Workout logger with offline-first save + API sync status
@@ -94,6 +96,10 @@ Android 13+ asks for notification permission the first time reminders are enable
 ## API Endpoints
 
 - `GET /health`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/logout`
 - `GET /api/v1/sync/snapshot`
 - `DELETE /api/v1/sync/data`
 - `GET /api/v1/profile`
@@ -118,3 +124,8 @@ Android 13+ asks for notification permission the first time reminders are enable
 
 If Postgres is configured but unavailable, the API automatically falls back to file storage.
 You can override file path using `FILE_STORAGE_PATH`.
+
+For sync/data endpoints:
+
+- with `Authorization: Bearer <token>`, data is scoped per authenticated user
+- without a token, API falls back to `local-user` mode for offline/guest usage

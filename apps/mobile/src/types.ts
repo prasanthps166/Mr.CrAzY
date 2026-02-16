@@ -46,6 +46,12 @@ export interface AppSettings {
   reminderNotificationId: string | null;
 }
 
+export interface AuthState {
+  userId: string | null;
+  email: string | null;
+  token: string | null;
+}
+
 export interface LocalSyncState {
   profilePending: boolean;
   nutritionPendingDates: string[];
@@ -69,6 +75,7 @@ export interface SamplePlan {
 }
 
 export interface AppData {
+  auth: AuthState;
   profile: UserProfile | null;
   workouts: WorkoutLog[];
   nutritionByDate: Record<string, NutritionLog>;
