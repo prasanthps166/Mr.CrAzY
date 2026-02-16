@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+.expo/
+.expo-shared/
+.DS_Store
+*.log
+npm-debug.log*
+apps/mobile/.expo/
+apps/mobile/.expo-shared/
+apps/mobile/node_modules/
+apps/mobile/dist/
+apps/mobile/web-build/
+apps/mobile/package-lock.json
+
