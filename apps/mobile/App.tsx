@@ -20,8 +20,23 @@ import { AccountScreen } from "./src/screens/AccountScreen";
 import { WorkoutScreen } from "./src/screens/WorkoutScreen";
 import { colors, spacing } from "./src/theme";
 import { createEmptyAppData, emptyAppData, loadAppData, saveAppData } from "./src/storage/appStore";
-import { AppData, AppTab, NutritionLog, ProgressDraft, SamplePlan, UserProfile, WorkoutDraft } from "./src/types";
+import {
+  AppData,
+  AppSettings,
+  AppTab,
+  NutritionLog,
+  ProgressDraft,
+  SamplePlan,
+  UserProfile,
+  WorkoutDraft
+} from "./src/types";
 import { formatDateLabel, toDateKey } from "./src/utils/date";
+import {
+  cancelReminderById,
+  configureReminderNotifications,
+  isValidReminderTime,
+  scheduleDailyReminder
+} from "./src/services/reminders";
 
 function makeNutritionLog(date: string): NutritionLog {
   return {
@@ -49,7 +64,7 @@ function mergeById<T extends { id: string }>(remoteItems: T[], localItems: T[]):
   return Array.from(map.values());
 }
 
-function mergeSnapshot(local: AppData, remote: Omit<AppData, "sync">): AppData {
+function mergeSnapshot(local: AppData, remote: Omit<AppData, "sync" | "settings">): AppData {
   const normalizedRemoteWorkouts = (remote.workouts ?? []).map((entry) => ({
     ...entry,
     createdAt: entry.createdAt ?? new Date().toISOString(),
@@ -71,12 +86,23 @@ function mergeSnapshot(local: AppData, remote: Omit<AppData, "sync">): AppData {
     progressEntries: mergeById(remote.progressEntries ?? [], local.progressEntries).sort((a, b) =>
       b.date.localeCompare(a.date)
     ),
-    sync: local.sync
+    sync: local.sync,
+    settings: local.settings
   };
 }
 
 function withUnique<T>(items: T[], value: T): T[] {
   return items.includes(value) ? items : [...items, value];
+}
+
+function withReminderSettings(prev: AppData, settingsPatch: Partial<AppSettings>): AppData {
+  return {
+    ...prev,
+    settings: {
+      ...prev.settings,
+      ...settingsPatch
+    }
+  };
 }
 
 export default function App() {
@@ -115,6 +141,51 @@ export default function App() {
       // Non-blocking save.
     });
   }, [appData, isReady]);
+
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+    configureReminderNotifications();
+  }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    if (!appData.settings.dailyReminderEnabled || appData.settings.reminderNotificationId) {
+      return;
+    }
+
+    const time = appData.settings.dailyReminderTime;
+    if (!isValidReminderTime(time)) {
+      return;
+    }
+
+    void (async () => {
+      const scheduled = await scheduleDailyReminder(
+        time,
+        "FitTrack reminder",
+        "Log your workout and keep the streak alive."
+      );
+
+      if (!scheduled.ok) {
+        return;
+      }
+
+      setAppData((prev) =>
+        withReminderSettings(prev, {
+          reminderNotificationId: scheduled.notificationId
+        })
+      );
+    })();
+  }, [
+    appData.settings.dailyReminderEnabled,
+    appData.settings.dailyReminderTime,
+    appData.settings.reminderNotificationId,
+    isReady
+  ]);
 
   const goal = appData.profile?.goal;
 
@@ -438,7 +509,48 @@ export default function App() {
     setProfilePending(!synced);
   }
 
+  async function handleSaveReminderSettings(settings: { enabled: boolean; time: string }) {
+    const nextTime = settings.time.trim();
+    if (!isValidReminderTime(nextTime)) {
+      throw new Error("Reminder time must be in HH:MM format.");
+    }
+
+    const previousId = appDataRef.current.settings.reminderNotificationId;
+    await cancelReminderById(previousId);
+
+    if (!settings.enabled) {
+      setAppData((prev) =>
+        withReminderSettings(prev, {
+          dailyReminderEnabled: false,
+          dailyReminderTime: nextTime,
+          reminderNotificationId: null
+        })
+      );
+      return;
+    }
+
+    const scheduled = await scheduleDailyReminder(
+      nextTime,
+      "FitTrack reminder",
+      "Log your workout and keep the streak alive."
+    );
+
+    if (!scheduled.ok) {
+      throw new Error(scheduled.reason);
+    }
+
+    setAppData((prev) =>
+      withReminderSettings(prev, {
+        dailyReminderEnabled: true,
+        dailyReminderTime: nextTime,
+        reminderNotificationId: scheduled.notificationId
+      })
+    );
+  }
+
   async function handleResetAllData() {
+    await cancelReminderById(appDataRef.current.settings.reminderNotificationId);
+
     setSyncing(true);
     try {
       await clearRemoteData();
@@ -520,7 +632,9 @@ export default function App() {
                 profile={appData.profile}
                 pendingSummary={pendingSummary}
                 syncing={syncing}
+                reminderSettings={appData.settings}
                 onSaveProfile={handleSaveProfile}
+                onSaveReminderSettings={handleSaveReminderSettings}
                 onSyncNow={handleSyncNow}
                 onResetAllData={handleResetAllData}
               />

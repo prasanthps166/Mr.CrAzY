@@ -63,6 +63,7 @@ npm run dev:api
 - Nutrition tracker with calories/macros/water and target progress
 - Progress tracker for weight/body-fat/waist history
 - Account tab for editing profile/targets, pending sync visibility, manual sync, and reset
+- Daily notification reminders with customizable time
 
 ## Android API Note
 
@@ -74,6 +75,8 @@ For a physical Android device on the same Wi-Fi, set `EXPO_PUBLIC_API_BASE_URL` 
 $env:EXPO_PUBLIC_API_BASE_URL="http://192.168.1.25:4000"
 npm run dev:mobile
 ```
+
+Android 13+ asks for notification permission the first time reminders are enabled.
 
 ## API Endpoints
 

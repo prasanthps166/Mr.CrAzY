@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 
 import { AppData, NutritionLog, ProgressEntry, SamplePlan, UserProfile, WorkoutLog } from "../types";
 
-export type ServerSnapshot = Omit<AppData, "sync">;
+export type ServerSnapshot = Omit<AppData, "sync" | "settings">;
 
 const apiBaseFromEnv = process.env.EXPO_PUBLIC_API_BASE_URL;
 const API_BASE_URL =

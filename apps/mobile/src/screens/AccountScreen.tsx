@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
 import { GOAL_LABELS } from "../constants";
 import { colors, radii, spacing } from "../theme";
-import { FitnessGoal, UserProfile } from "../types";
+import { AppSettings, FitnessGoal, UserProfile } from "../types";
 import { formatDateLabel } from "../utils/date";
 import { calculateTargets } from "../utils/targets";
 
@@ -18,7 +18,9 @@ interface AccountScreenProps {
     lastSuccessfulSyncAt: string | null;
   };
   syncing: boolean;
+  reminderSettings: Pick<AppSettings, "dailyReminderEnabled" | "dailyReminderTime">;
   onSaveProfile: (profile: UserProfile) => Promise<void>;
+  onSaveReminderSettings: (settings: { enabled: boolean; time: string }) => Promise<void>;
   onSyncNow: () => void;
   onResetAllData: () => void;
 }
@@ -34,7 +36,9 @@ export function AccountScreen({
   profile,
   pendingSummary,
   syncing,
+  reminderSettings,
   onSaveProfile,
+  onSaveReminderSettings,
   onSyncNow,
   onResetAllData
 }: AccountScreenProps) {
@@ -47,6 +51,10 @@ export function AccountScreen({
   const [goal, setGoal] = useState<FitnessGoal>(profile.goal);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reminderEnabled, setReminderEnabled] = useState(reminderSettings.dailyReminderEnabled);
+  const [reminderTimeText, setReminderTimeText] = useState(reminderSettings.dailyReminderTime);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+  const [savingReminder, setSavingReminder] = useState(false);
 
   useEffect(() => {
     setName(profile.name);
@@ -57,6 +65,11 @@ export function AccountScreen({
     setProteinText(String(profile.proteinTargetGrams));
     setGoal(profile.goal);
   }, [profile]);
+
+  useEffect(() => {
+    setReminderEnabled(reminderSettings.dailyReminderEnabled);
+    setReminderTimeText(reminderSettings.dailyReminderTime);
+  }, [reminderSettings]);
 
   function autoCalculateTargets() {
     const weightKg = Number(weightText);
@@ -119,6 +132,23 @@ export function AccountScreen({
       setError("Could not save profile right now.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveReminderSettings() {
+    setSavingReminder(true);
+    setReminderError(null);
+
+    try {
+      await onSaveReminderSettings({
+        enabled: reminderEnabled,
+        time: reminderTimeText.trim()
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save reminder settings.";
+      setReminderError(message);
+    } finally {
+      setSavingReminder(false);
     }
   }
 
@@ -208,6 +238,37 @@ export function AccountScreen({
         </Pressable>
       </View>
 
+      <View style={styles.reminderCard}>
+        <Text style={styles.reminderTitle}>Daily Reminder</Text>
+        <Text style={styles.reminderSubtitle}>Schedule a notification to log your workout every day.</Text>
+
+        <View style={styles.reminderToggleRow}>
+          <Text style={styles.reminderLabel}>Enable reminder</Text>
+          <Switch
+            value={reminderEnabled}
+            onValueChange={setReminderEnabled}
+            trackColor={{ false: "#cbd8cc", true: "#9fd8b5" }}
+            thumbColor={reminderEnabled ? colors.accent : "#f6f6f6"}
+          />
+        </View>
+
+        <Text style={styles.fieldLabel}>Reminder Time (24h HH:MM)</Text>
+        <TextInput
+          value={reminderTimeText}
+          onChangeText={setReminderTimeText}
+          style={styles.input}
+          placeholder="20:00"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+
+        {reminderError ? <Text style={styles.errorText}>{reminderError}</Text> : null}
+
+        <Pressable style={styles.secondaryButton} onPress={saveReminderSettings} disabled={savingReminder}>
+          <Text style={styles.secondaryButtonText}>{savingReminder ? "Saving..." : "Save Reminder"}</Text>
+        </Pressable>
+      </View>
+
       <Pressable style={styles.resetButton} onPress={requestReset}>
         <Text style={styles.resetText}>Reset All Data</Text>
       </Pressable>
@@ -219,6 +280,34 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl + 8
+  },
+  reminderCard: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: radii.lg,
+    padding: spacing.md
+  },
+  reminderTitle: {
+    color: colors.inkStrong,
+    fontWeight: "800",
+    fontSize: 18
+  },
+  reminderSubtitle: {
+    marginTop: spacing.xs,
+    color: colors.inkMuted,
+    marginBottom: spacing.sm
+  },
+  reminderToggleRow: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  reminderLabel: {
+    color: colors.inkSoft,
+    fontWeight: "700"
   },
   title: {
     fontSize: 28,
@@ -345,4 +434,3 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   }
 });
-

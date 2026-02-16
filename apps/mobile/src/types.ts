@@ -40,6 +40,12 @@ export interface ProgressEntry {
   waistCm?: number;
 }
 
+export interface AppSettings {
+  dailyReminderEnabled: boolean;
+  dailyReminderTime: string;
+  reminderNotificationId: string | null;
+}
+
 export interface LocalSyncState {
   profilePending: boolean;
   nutritionPendingDates: string[];
@@ -65,6 +71,7 @@ export interface AppData {
   nutritionByDate: Record<string, NutritionLog>;
   progressEntries: ProgressEntry[];
   sync: LocalSyncState;
+  settings: AppSettings;
 }
 
 export interface WorkoutDraft {

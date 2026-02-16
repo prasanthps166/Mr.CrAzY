@@ -15,6 +15,11 @@ export function createEmptyAppData(): AppData {
       nutritionPendingDates: [],
       progressPendingIds: [],
       lastSuccessfulSyncAt: null
+    },
+    settings: {
+      dailyReminderEnabled: false,
+      dailyReminderTime: "20:00",
+      reminderNotificationId: null
     }
   };
 }
@@ -36,6 +41,11 @@ function sanitize(input: Partial<AppData>): AppData {
         ? input.sync.progressPendingIds
         : [],
       lastSuccessfulSyncAt: input.sync?.lastSuccessfulSyncAt ?? null
+    },
+    settings: {
+      dailyReminderEnabled: input.settings?.dailyReminderEnabled ?? false,
+      dailyReminderTime: input.settings?.dailyReminderTime ?? "20:00",
+      reminderNotificationId: input.settings?.reminderNotificationId ?? null
     }
   };
 }
