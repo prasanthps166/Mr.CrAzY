@@ -4,6 +4,9 @@ import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-n
 
 import {
   clearRemoteData,
+  deleteNutritionLog,
+  deleteProgressEntry,
+  deleteWorkoutLog,
   fetchSamplePlan,
   fetchSnapshot,
   syncNutritionLog,
@@ -65,25 +68,43 @@ function mergeById<T extends { id: string }>(remoteItems: T[], localItems: T[]):
 }
 
 function mergeSnapshot(local: AppData, remote: Omit<AppData, "sync" | "settings">): AppData {
+  const deletedWorkoutIds = new Set(local.sync.deletedWorkoutIds);
+  const deletedNutritionDates = new Set(local.sync.deletedNutritionDates);
+  const deletedProgressIds = new Set(local.sync.deletedProgressIds);
+
   const normalizedRemoteWorkouts = (remote.workouts ?? []).map((entry) => ({
     ...entry,
     createdAt: entry.createdAt ?? new Date().toISOString(),
     syncedAt: entry.syncedAt ?? new Date().toISOString()
-  }));
+  })).filter((entry) => !deletedWorkoutIds.has(entry.id));
+
+  const localWorkouts = local.workouts.filter((entry) => !deletedWorkoutIds.has(entry.id));
+
+  const filteredRemoteNutrition = Object.fromEntries(
+    Object.entries(remote.nutritionByDate ?? {}).filter(([date]) => !deletedNutritionDates.has(date))
+  );
+  const localNutrition = Object.fromEntries(
+    Object.entries(local.nutritionByDate).filter(([date]) => !deletedNutritionDates.has(date))
+  );
+
+  const filteredRemoteProgress = (remote.progressEntries ?? []).filter(
+    (entry) => !deletedProgressIds.has(entry.id)
+  );
+  const localProgress = local.progressEntries.filter((entry) => !deletedProgressIds.has(entry.id));
 
   return {
     profile: local.profile ?? remote.profile ?? null,
-    workouts: mergeById(normalizedRemoteWorkouts, local.workouts).sort((a, b) => {
+    workouts: mergeById(normalizedRemoteWorkouts, localWorkouts).sort((a, b) => {
       if (a.date === b.date) {
         return b.createdAt.localeCompare(a.createdAt);
       }
       return b.date.localeCompare(a.date);
     }),
     nutritionByDate: {
-      ...(remote.nutritionByDate ?? {}),
-      ...local.nutritionByDate
+      ...filteredRemoteNutrition,
+      ...localNutrition
     },
-    progressEntries: mergeById(remote.progressEntries ?? [], local.progressEntries).sort((a, b) =>
+    progressEntries: mergeById(filteredRemoteProgress, localProgress).sort((a, b) =>
       b.date.localeCompare(a.date)
     ),
     sync: local.sync,
@@ -214,9 +235,15 @@ export default function App() {
     [appData.nutritionByDate, today]
   );
   const pendingSummary = useMemo(() => {
-    const workouts = appData.workouts.filter((entry) => !entry.syncedAt).length;
-    const nutrition = appData.sync.nutritionPendingDates.length;
-    const progress = appData.sync.progressPendingIds.length;
+    const workouts =
+      appData.workouts.filter((entry) => !entry.syncedAt).length +
+      appData.sync.deletedWorkoutIds.length;
+    const nutrition =
+      appData.sync.nutritionPendingDates.length +
+      appData.sync.deletedNutritionDates.length;
+    const progress =
+      appData.sync.progressPendingIds.length +
+      appData.sync.deletedProgressIds.length;
     const profile = appData.sync.profilePending;
     return {
       workouts,
@@ -245,7 +272,8 @@ export default function App() {
       ...prev,
       sync: {
         ...prev.sync,
-        nutritionPendingDates: withUnique(prev.sync.nutritionPendingDates, date)
+        nutritionPendingDates: withUnique(prev.sync.nutritionPendingDates, date),
+        deletedNutritionDates: prev.sync.deletedNutritionDates.filter((item) => item !== date)
       }
     }));
   }
@@ -267,7 +295,8 @@ export default function App() {
       ...prev,
       sync: {
         ...prev.sync,
-        progressPendingIds: withUnique(prev.sync.progressPendingIds, id)
+        progressPendingIds: withUnique(prev.sync.progressPendingIds, id),
+        deletedProgressIds: prev.sync.deletedProgressIds.filter((item) => item !== id)
       }
     }));
   }
@@ -279,6 +308,74 @@ export default function App() {
       sync: {
         ...prev.sync,
         progressPendingIds: prev.sync.progressPendingIds.filter((item) => item !== id),
+        lastSuccessfulSyncAt: nowIso
+      }
+    }));
+  }
+
+  function addWorkoutDeletePending(id: string) {
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        deletedWorkoutIds: withUnique(prev.sync.deletedWorkoutIds, id)
+      }
+    }));
+  }
+
+  function resolveWorkoutDeletePending(id: string) {
+    const nowIso = new Date().toISOString();
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        deletedWorkoutIds: prev.sync.deletedWorkoutIds.filter((item) => item !== id),
+        lastSuccessfulSyncAt: nowIso
+      }
+    }));
+  }
+
+  function addNutritionDeletePending(date: string) {
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        nutritionPendingDates: prev.sync.nutritionPendingDates.filter((item) => item !== date),
+        deletedNutritionDates: withUnique(prev.sync.deletedNutritionDates, date)
+      }
+    }));
+  }
+
+  function resolveNutritionDeletePending(date: string) {
+    const nowIso = new Date().toISOString();
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        deletedNutritionDates: prev.sync.deletedNutritionDates.filter((item) => item !== date),
+        lastSuccessfulSyncAt: nowIso
+      }
+    }));
+  }
+
+  function addProgressDeletePending(id: string) {
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        progressPendingIds: prev.sync.progressPendingIds.filter((item) => item !== id),
+        deletedProgressIds: withUnique(prev.sync.deletedProgressIds, id)
+      }
+    }));
+  }
+
+  function resolveProgressDeletePending(id: string) {
+    const nowIso = new Date().toISOString();
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        deletedProgressIds: prev.sync.deletedProgressIds.filter((item) => item !== id),
         lastSuccessfulSyncAt: nowIso
       }
     }));
@@ -388,6 +485,27 @@ export default function App() {
     try {
       const current = appDataRef.current;
 
+      for (const workoutId of current.sync.deletedWorkoutIds) {
+        const deleted = await deleteWorkoutLog(workoutId);
+        if (deleted) {
+          resolveWorkoutDeletePending(workoutId);
+        }
+      }
+
+      for (const date of current.sync.deletedNutritionDates) {
+        const deleted = await deleteNutritionLog(date);
+        if (deleted) {
+          resolveNutritionDeletePending(date);
+        }
+      }
+
+      for (const progressId of current.sync.deletedProgressIds) {
+        const deleted = await deleteProgressEntry(progressId);
+        if (deleted) {
+          resolveProgressDeletePending(progressId);
+        }
+      }
+
       if (current.profile && current.sync.profilePending) {
         const syncedProfile = await syncProfile(current.profile);
         if (syncedProfile) {
@@ -396,6 +514,9 @@ export default function App() {
       }
 
       for (const date of current.sync.nutritionPendingDates) {
+        if (current.sync.deletedNutritionDates.includes(date)) {
+          continue;
+        }
         const log = current.nutritionByDate[date];
         if (!log) {
           resolveNutritionPending(date);
@@ -408,6 +529,9 @@ export default function App() {
       }
 
       for (const entryId of current.sync.progressPendingIds) {
+        if (current.sync.deletedProgressIds.includes(entryId)) {
+          continue;
+        }
         const entry = current.progressEntries.find((item) => item.id === entryId);
         if (!entry) {
           resolveProgressPending(entryId);
@@ -419,7 +543,9 @@ export default function App() {
         }
       }
 
-      const pendingWorkouts = current.workouts.filter((entry) => !entry.syncedAt);
+      const pendingWorkouts = current.workouts.filter(
+        (entry) => !entry.syncedAt && !current.sync.deletedWorkoutIds.includes(entry.id)
+      );
       for (const workout of pendingWorkouts) {
         const synced = await syncWorkoutLog(workout);
         if (synced) {
@@ -495,6 +621,73 @@ export default function App() {
       if (nextProfile) {
         const profileSynced = await syncProfile(nextProfile);
         setProfilePending(!profileSynced);
+      }
+    })();
+  }
+
+  function handleDeleteWorkout(workoutId: string) {
+    setAppData((prev) => ({
+      ...prev,
+      workouts: prev.workouts.filter((entry) => entry.id !== workoutId),
+      sync: {
+        ...prev.sync,
+        deletedWorkoutIds: withUnique(prev.sync.deletedWorkoutIds, workoutId)
+      }
+    }));
+
+    void (async () => {
+      const deleted = await deleteWorkoutLog(workoutId);
+      if (deleted) {
+        resolveWorkoutDeletePending(workoutId);
+      } else {
+        addWorkoutDeletePending(workoutId);
+      }
+    })();
+  }
+
+  function handleClearNutrition(date: string) {
+    setAppData((prev) => {
+      const nextNutritionByDate = { ...prev.nutritionByDate };
+      delete nextNutritionByDate[date];
+
+      return {
+        ...prev,
+        nutritionByDate: nextNutritionByDate,
+        sync: {
+          ...prev.sync,
+          nutritionPendingDates: prev.sync.nutritionPendingDates.filter((item) => item !== date),
+          deletedNutritionDates: withUnique(prev.sync.deletedNutritionDates, date)
+        }
+      };
+    });
+
+    void (async () => {
+      const deleted = await deleteNutritionLog(date);
+      if (deleted) {
+        resolveNutritionDeletePending(date);
+      } else {
+        addNutritionDeletePending(date);
+      }
+    })();
+  }
+
+  function handleDeleteProgressEntry(entryId: string) {
+    setAppData((prev) => ({
+      ...prev,
+      progressEntries: prev.progressEntries.filter((entry) => entry.id !== entryId),
+      sync: {
+        ...prev.sync,
+        progressPendingIds: prev.sync.progressPendingIds.filter((item) => item !== entryId),
+        deletedProgressIds: withUnique(prev.sync.deletedProgressIds, entryId)
+      }
+    }));
+
+    void (async () => {
+      const deleted = await deleteProgressEntry(entryId);
+      if (deleted) {
+        resolveProgressDeletePending(entryId);
+      } else {
+        addProgressDeletePending(entryId);
       }
     })();
   }
@@ -608,7 +801,11 @@ export default function App() {
             ) : null}
 
             {activeTab === "workout" ? (
-              <WorkoutScreen workouts={appData.workouts} onCreateWorkout={handleCreateWorkout} />
+              <WorkoutScreen
+                workouts={appData.workouts}
+                onCreateWorkout={handleCreateWorkout}
+                onDeleteWorkout={handleDeleteWorkout}
+              />
             ) : null}
 
             {activeTab === "nutrition" ? (
@@ -616,6 +813,7 @@ export default function App() {
                 profile={appData.profile}
                 nutritionLog={nutritionLog}
                 onSaveNutrition={handleSaveNutrition}
+                onClearNutrition={handleClearNutrition}
               />
             ) : null}
 
@@ -624,6 +822,7 @@ export default function App() {
                 profile={appData.profile}
                 entries={appData.progressEntries}
                 onAddProgress={handleAddProgress}
+                onDeleteProgressEntry={handleDeleteProgressEntry}
               />
             ) : null}
 

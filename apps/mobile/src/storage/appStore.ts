@@ -14,6 +14,9 @@ export function createEmptyAppData(): AppData {
       profilePending: false,
       nutritionPendingDates: [],
       progressPendingIds: [],
+      deletedWorkoutIds: [],
+      deletedNutritionDates: [],
+      deletedProgressIds: [],
       lastSuccessfulSyncAt: null
     },
     settings: {
@@ -39,6 +42,15 @@ function sanitize(input: Partial<AppData>): AppData {
         : [],
       progressPendingIds: Array.isArray(input.sync?.progressPendingIds)
         ? input.sync.progressPendingIds
+        : [],
+      deletedWorkoutIds: Array.isArray(input.sync?.deletedWorkoutIds)
+        ? input.sync.deletedWorkoutIds
+        : [],
+      deletedNutritionDates: Array.isArray(input.sync?.deletedNutritionDates)
+        ? input.sync.deletedNutritionDates
+        : [],
+      deletedProgressIds: Array.isArray(input.sync?.deletedProgressIds)
+        ? input.sync.deletedProgressIds
         : [],
       lastSuccessfulSyncAt: input.sync?.lastSuccessfulSyncAt ?? null
     },

@@ -9,9 +9,10 @@ import { formatDateLabel } from "../utils/date";
 interface WorkoutScreenProps {
   workouts: WorkoutLog[];
   onCreateWorkout: (draft: WorkoutDraft) => Promise<void>;
+  onDeleteWorkout: (id: string) => void;
 }
 
-export function WorkoutScreen({ workouts, onCreateWorkout }: WorkoutScreenProps) {
+export function WorkoutScreen({ workouts, onCreateWorkout, onDeleteWorkout }: WorkoutScreenProps) {
   const [workoutType, setWorkoutType] = useState<WorkoutType>("strength");
   const [durationText, setDurationText] = useState("45");
   const [notes, setNotes] = useState("");
@@ -111,6 +112,9 @@ export function WorkoutScreen({ workouts, onCreateWorkout }: WorkoutScreenProps)
                 <Text style={entry.syncedAt ? styles.synced : styles.unsynced}>
                   {entry.syncedAt ? "Synced" : "Pending sync"}
                 </Text>
+                <Pressable style={styles.deleteButton} onPress={() => onDeleteWorkout(entry.id)}>
+                  <Text style={styles.deleteText}>Delete</Text>
+                </Pressable>
               </View>
             </View>
           ))
@@ -252,6 +256,18 @@ const styles = StyleSheet.create({
     color: colors.warning,
     fontSize: 11,
     marginTop: 2
+  },
+  deleteButton: {
+    marginTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3
+  },
+  deleteText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: "700"
   }
 });
-

@@ -50,6 +50,9 @@ export interface LocalSyncState {
   profilePending: boolean;
   nutritionPendingDates: string[];
   progressPendingIds: string[];
+  deletedWorkoutIds: string[];
+  deletedNutritionDates: string[];
+  deletedProgressIds: string[];
   lastSuccessfulSyncAt: string | null;
 }
 

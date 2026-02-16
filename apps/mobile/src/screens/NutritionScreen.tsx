@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { colors, radii, spacing } from "../theme";
 import { NutritionLog, UserProfile } from "../types";
@@ -8,9 +8,10 @@ interface NutritionScreenProps {
   profile: UserProfile;
   nutritionLog: NutritionLog;
   onSaveNutrition: (log: NutritionLog) => void;
+  onClearNutrition: (date: string) => void;
 }
 
-export function NutritionScreen({ profile, nutritionLog, onSaveNutrition }: NutritionScreenProps) {
+export function NutritionScreen({ profile, nutritionLog, onSaveNutrition, onClearNutrition }: NutritionScreenProps) {
   const [caloriesText, setCaloriesText] = useState(String(nutritionLog.calories));
   const [proteinText, setProteinText] = useState(String(nutritionLog.protein));
   const [carbsText, setCarbsText] = useState(String(nutritionLog.carbs));
@@ -64,6 +65,21 @@ export function NutritionScreen({ profile, nutritionLog, onSaveNutrition }: Nutr
   function addQuickWater(amount: number) {
     const next = Math.max(0, Number(waterText || "0") + amount);
     setWaterText(next.toFixed(1));
+  }
+
+  function clearToday() {
+    Alert.alert(
+      "Clear today's nutrition?",
+      "This removes today's calories and macros.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: () => onClearNutrition(nutritionLog.date)
+        }
+      ]
+    );
   }
 
   return (
@@ -151,6 +167,10 @@ export function NutritionScreen({ profile, nutritionLog, onSaveNutrition }: Nutr
 
         <Pressable style={styles.primaryButton} onPress={submit}>
           <Text style={styles.primaryButtonText}>Save Today&apos;s Nutrition</Text>
+        </Pressable>
+
+        <Pressable style={styles.clearButton} onPress={clearToday}>
+          <Text style={styles.clearButtonText}>Clear Today&apos;s Log</Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -268,6 +288,18 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "700",
     fontSize: 15
+  },
+  clearButton: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radii.md,
+    alignItems: "center",
+    paddingVertical: spacing.sm
+  },
+  clearButtonText: {
+    color: colors.danger,
+    fontWeight: "700",
+    fontSize: 14
   }
 });
-

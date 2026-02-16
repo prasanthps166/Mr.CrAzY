@@ -9,9 +9,10 @@ interface ProgressScreenProps {
   profile: UserProfile;
   entries: ProgressEntry[];
   onAddProgress: (draft: ProgressDraft) => void;
+  onDeleteProgressEntry: (id: string) => void;
 }
 
-export function ProgressScreen({ profile, entries, onAddProgress }: ProgressScreenProps) {
+export function ProgressScreen({ profile, entries, onAddProgress, onDeleteProgressEntry }: ProgressScreenProps) {
   const [weightText, setWeightText] = useState(String(profile.currentWeightKg));
   const [bodyFatText, setBodyFatText] = useState("");
   const [waistText, setWaistText] = useState("");
@@ -117,6 +118,9 @@ export function ProgressScreen({ profile, entries, onAddProgress }: ProgressScre
                 {entry.waistCm !== undefined ? (
                   <Text style={styles.optionalText}>Waist {entry.waistCm} cm</Text>
                 ) : null}
+                <Pressable style={styles.deleteButton} onPress={() => onDeleteProgressEntry(entry.id)}>
+                  <Text style={styles.deleteText}>Delete</Text>
+                </Pressable>
               </View>
             </View>
           ))
@@ -226,6 +230,18 @@ const styles = StyleSheet.create({
   optionalText: {
     color: colors.inkMuted,
     fontSize: 12
+  },
+  deleteButton: {
+    marginTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3
+  },
+  deleteText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: "700"
   }
 });
-

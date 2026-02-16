@@ -210,6 +210,19 @@ export function createServer() {
     });
   });
 
+  app.delete("/api/v1/workouts/logs/:id", async (req, res) => {
+    const id = req.params.id;
+    const data = await readAppData();
+    const initialCount = data.workouts.length;
+    data.workouts = data.workouts.filter((entry) => entry.id !== id);
+    await writeAppData(sortData(data));
+
+    res.json({
+      message: initialCount === data.workouts.length ? "Workout not found" : "Workout deleted",
+      id
+    });
+  });
+
   app.get("/api/v1/nutrition/logs", async (_req, res) => {
     const data = await readAppData();
     res.json({
@@ -243,6 +256,30 @@ export function createServer() {
     });
   });
 
+  app.delete("/api/v1/nutrition/logs/:date", async (req, res) => {
+    const date = req.params.date;
+    const dateParsed = z.string().date().safeParse(date);
+
+    if (!dateParsed.success) {
+      res.status(400).json({
+        message: "Invalid date"
+      });
+      return;
+    }
+
+    const data = await readAppData();
+    const hadValue = Object.hasOwn(data.nutritionByDate, date);
+    if (hadValue) {
+      delete data.nutritionByDate[date];
+      await writeAppData(data);
+    }
+
+    res.json({
+      message: hadValue ? "Nutrition deleted" : "Nutrition not found",
+      date
+    });
+  });
+
   app.get("/api/v1/progress/entries", async (_req, res) => {
     const data = sortData(await readAppData());
     res.json({
@@ -269,6 +306,19 @@ export function createServer() {
     res.status(201).json({
       message: "Progress logged",
       data: parsed.data
+    });
+  });
+
+  app.delete("/api/v1/progress/entries/:id", async (req, res) => {
+    const id = req.params.id;
+    const data = await readAppData();
+    const initialCount = data.progressEntries.length;
+    data.progressEntries = data.progressEntries.filter((entry) => entry.id !== id);
+    await writeAppData(sortData(data));
+
+    res.json({
+      message: initialCount === data.progressEntries.length ? "Progress not found" : "Progress deleted",
+      id
     });
   });
 

@@ -64,6 +64,7 @@ npm run dev:api
 - Progress tracker for weight/body-fat/waist history
 - Account tab for editing profile/targets, pending sync visibility, manual sync, and reset
 - Daily notification reminders with customizable time
+- Delete actions for workouts/progress/nutrition with offline-safe sync queues
 
 ## Android API Note
 
@@ -88,10 +89,13 @@ Android 13+ asks for notification permission the first time reminders are enable
 - `GET /api/v1/plans/sample`
 - `GET /api/v1/workouts/logs`
 - `POST /api/v1/workouts/logs`
+- `DELETE /api/v1/workouts/logs/:id`
 - `GET /api/v1/nutrition/logs`
 - `PUT /api/v1/nutrition/logs/:date`
+- `DELETE /api/v1/nutrition/logs/:date`
 - `GET /api/v1/progress/entries`
 - `POST /api/v1/progress/entries`
+- `DELETE /api/v1/progress/entries/:id`
 
 ## Data Persistence
 

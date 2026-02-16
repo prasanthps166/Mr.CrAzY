@@ -127,6 +127,39 @@ export async function syncProgressEntry(entry: ProgressEntry): Promise<boolean> 
   }
 }
 
+export async function deleteWorkoutLog(id: string): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout(`/api/v1/workouts/logs/${id}`, {
+      method: "DELETE"
+    });
+    return response.ok;
+  } catch (_error) {
+    return false;
+  }
+}
+
+export async function deleteNutritionLog(date: string): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout(`/api/v1/nutrition/logs/${date}`, {
+      method: "DELETE"
+    });
+    return response.ok;
+  } catch (_error) {
+    return false;
+  }
+}
+
+export async function deleteProgressEntry(id: string): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout(`/api/v1/progress/entries/${id}`, {
+      method: "DELETE"
+    });
+    return response.ok;
+  } catch (_error) {
+    return false;
+  }
+}
+
 export async function clearRemoteData(): Promise<boolean> {
   try {
     const response = await fetchWithTimeout("/api/v1/sync/data", {
