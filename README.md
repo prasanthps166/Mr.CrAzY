@@ -54,6 +54,7 @@ docker compose -f infra/docker-compose.yml up -d
 - Workout logger with offline-first save + API sync status
 - Nutrition tracker with calories/macros/water and target progress
 - Progress tracker for weight/body-fat/waist history
+- Account tab for editing profile/targets, pending sync visibility, manual sync, and reset
 
 ## Android API Note
 
@@ -64,6 +65,7 @@ Run the API before logging workouts if you want immediate sync.
 
 - `GET /health`
 - `GET /api/v1/sync/snapshot`
+- `DELETE /api/v1/sync/data`
 - `GET /api/v1/profile`
 - `PUT /api/v1/profile`
 - `GET /api/v1/plans/sample`

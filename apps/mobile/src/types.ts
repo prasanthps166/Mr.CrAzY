@@ -40,6 +40,13 @@ export interface ProgressEntry {
   waistCm?: number;
 }
 
+export interface LocalSyncState {
+  profilePending: boolean;
+  nutritionPendingDates: string[];
+  progressPendingIds: string[];
+  lastSuccessfulSyncAt: string | null;
+}
+
 export interface WeeklyPlanItem {
   day: string;
   focus: string;
@@ -57,6 +64,7 @@ export interface AppData {
   workouts: WorkoutLog[];
   nutritionByDate: Record<string, NutritionLog>;
   progressEntries: ProgressEntry[];
+  sync: LocalSyncState;
 }
 
 export interface WorkoutDraft {
@@ -71,5 +79,4 @@ export interface ProgressDraft {
   waistCm?: number;
 }
 
-export type AppTab = "dashboard" | "workout" | "nutrition" | "progress";
-
+export type AppTab = "dashboard" | "workout" | "nutrition" | "progress" | "account";

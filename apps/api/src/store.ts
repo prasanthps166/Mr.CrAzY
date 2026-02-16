@@ -50,12 +50,14 @@ export interface AppData {
   progressEntries: ProgressEntry[];
 }
 
-const defaultData: AppData = {
-  profile: null,
-  workouts: [],
-  nutritionByDate: {},
-  progressEntries: []
-};
+export function createDefaultAppData(): AppData {
+  return {
+    profile: null,
+    workouts: [],
+    nutritionByDate: {},
+    progressEntries: []
+  };
+}
 
 const dataFilePath = fileURLToPath(new URL("../data/app-data.json", import.meta.url));
 
@@ -86,8 +88,8 @@ export async function readAppData(): Promise<AppData> {
     const raw = await readFile(dataFilePath, "utf-8");
     cache = sanitize(JSON.parse(raw) as Partial<AppData>);
   } catch (_error) {
-    cache = defaultData;
-    await writeAppData(defaultData);
+    cache = createDefaultAppData();
+    await writeAppData(cache);
   }
 
   return cache;
@@ -102,3 +104,8 @@ export async function writeAppData(data: AppData): Promise<void> {
   await writeQueue;
 }
 
+export async function resetAppData(): Promise<AppData> {
+  const empty = createDefaultAppData();
+  await writeAppData(empty);
+  return empty;
+}

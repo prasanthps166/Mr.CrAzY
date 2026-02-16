@@ -2,6 +2,8 @@ import { Platform } from "react-native";
 
 import { AppData, NutritionLog, ProgressEntry, SamplePlan, UserProfile, WorkoutLog } from "../types";
 
+export type ServerSnapshot = Omit<AppData, "sync">;
+
 const API_BASE_URL =
   Platform.OS === "android"
     ? "http://10.0.2.2:4000"
@@ -62,7 +64,7 @@ export async function fetchSamplePlan(goal?: UserProfile["goal"]): Promise<Sampl
   }
 }
 
-export async function fetchSnapshot(): Promise<AppData | null> {
+export async function fetchSnapshot(): Promise<ServerSnapshot | null> {
   try {
     const response = await fetchWithTimeout("/api/v1/sync/snapshot", {
       method: "GET"
@@ -70,7 +72,7 @@ export async function fetchSnapshot(): Promise<AppData | null> {
     if (!response.ok) {
       return null;
     }
-    return (await response.json()) as AppData;
+    return (await response.json()) as ServerSnapshot;
   } catch (_error) {
     return null;
   }
@@ -114,6 +116,17 @@ export async function syncProgressEntry(entry: ProgressEntry): Promise<boolean> 
         "Content-Type": "application/json"
       },
       body: JSON.stringify(entry)
+    });
+    return response.ok;
+  } catch (_error) {
+    return false;
+  }
+}
+
+export async function clearRemoteData(): Promise<boolean> {
+  try {
+    const response = await fetchWithTimeout("/api/v1/sync/data", {
+      method: "DELETE"
     });
     return response.ok;
   } catch (_error) {

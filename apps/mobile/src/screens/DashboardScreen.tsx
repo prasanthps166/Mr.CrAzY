@@ -11,7 +11,14 @@ interface DashboardScreenProps {
   nutritionLog: NutritionLog;
   progressEntries: ProgressEntry[];
   samplePlan: SamplePlan | null;
-  unsyncedCount: number;
+  pendingSummary: {
+    total: number;
+    workouts: number;
+    nutrition: number;
+    progress: number;
+    profile: boolean;
+    lastSuccessfulSyncAt: string | null;
+  };
   syncing: boolean;
   onRetrySync: () => void;
 }
@@ -22,7 +29,7 @@ export function DashboardScreen({
   nutritionLog,
   progressEntries,
   samplePlan,
-  unsyncedCount,
+  pendingSummary,
   syncing,
   onRetrySync
 }: DashboardScreenProps) {
@@ -31,6 +38,9 @@ export function DashboardScreen({
   const caloriesLeft = Math.max(profile.dailyCalorieTarget - nutritionLog.calories, 0);
   const lastWeight = progressEntries[0]?.weightKg ?? profile.currentWeightKg;
   const planItems = samplePlan?.weeklyPlan.length ? samplePlan.weeklyPlan : FALLBACK_PLANS[profile.goal];
+  const lastSyncLabel = pendingSummary.lastSuccessfulSyncAt
+    ? pendingSummary.lastSuccessfulSyncAt.slice(0, 10)
+    : "Never";
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -83,14 +93,19 @@ export function DashboardScreen({
         </View>
       </View>
 
-      {unsyncedCount > 0 ? (
+      {pendingSummary.total > 0 ? (
         <View style={styles.syncBanner}>
           <Text style={styles.syncText}>
-            {unsyncedCount} workout {unsyncedCount > 1 ? "entries are" : "entry is"} waiting to sync.
+            {pendingSummary.total} pending changes.
+          </Text>
+          <Text style={styles.syncSubText}>
+            W:{pendingSummary.workouts} N:{pendingSummary.nutrition} P:{pendingSummary.progress}{" "}
+            {pendingSummary.profile ? "Profile pending" : "Profile synced"}
           </Text>
           <Pressable style={styles.syncButton} onPress={onRetrySync} disabled={syncing}>
             <Text style={styles.syncButtonText}>{syncing ? "Syncing..." : "Sync Now"}</Text>
           </Pressable>
+          <Text style={styles.syncMeta}>Last successful sync: {lastSyncLabel}</Text>
         </View>
       ) : null}
     </ScrollView>
@@ -204,6 +219,10 @@ const styles = StyleSheet.create({
     color: colors.warning,
     fontWeight: "600"
   },
+  syncSubText: {
+    marginTop: spacing.xs,
+    color: colors.warning
+  },
   syncButton: {
     marginTop: spacing.sm,
     backgroundColor: colors.warning,
@@ -214,6 +233,10 @@ const styles = StyleSheet.create({
   syncButtonText: {
     color: "#ffffff",
     fontWeight: "700"
+  },
+  syncMeta: {
+    marginTop: spacing.xs,
+    color: colors.warning,
+    fontSize: 12
   }
 });
-

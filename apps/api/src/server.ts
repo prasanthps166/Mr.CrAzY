@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { config } from "./config.js";
 import {
+  resetAppData,
   readAppData,
   type AppData,
   type FitnessGoal,
@@ -122,6 +123,14 @@ export function createServer() {
   app.get("/api/v1/sync/snapshot", async (_req, res) => {
     const data = await readAppData();
     res.json(sortData(data));
+  });
+
+  app.delete("/api/v1/sync/data", async (_req, res) => {
+    const data = await resetAppData();
+    res.json({
+      message: "Data reset complete",
+      data
+    });
   });
 
   app.put("/api/v1/profile", async (req, res) => {

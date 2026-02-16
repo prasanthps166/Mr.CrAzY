@@ -4,21 +4,10 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { GOAL_DESCRIPTIONS, GOAL_LABELS } from "../constants";
 import { colors, radii, spacing } from "../theme";
 import { FitnessGoal, UserProfile } from "../types";
+import { calculateTargets } from "../utils/targets";
 
 interface OnboardingScreenProps {
   onComplete: (profile: UserProfile) => void;
-}
-
-function calculateTargets(goal: FitnessGoal, weightKg: number) {
-  const calorieFactor =
-    goal === "gain_muscle" ? 36 :
-    goal === "lose_weight" ? 28 :
-    32;
-
-  return {
-    dailyCalorieTarget: Math.round(weightKg * calorieFactor),
-    proteinTargetGrams: Math.round(weightKg * 1.8)
-  };
 }
 
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
@@ -242,4 +231,3 @@ const styles = StyleSheet.create({
     fontSize: 16
   }
 });
-

@@ -1,8 +1,9 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 import {
+  clearRemoteData,
   fetchSamplePlan,
   fetchSnapshot,
   syncNutritionLog,
@@ -15,9 +16,10 @@ import { DashboardScreen } from "./src/screens/DashboardScreen";
 import { NutritionScreen } from "./src/screens/NutritionScreen";
 import { OnboardingScreen } from "./src/screens/OnboardingScreen";
 import { ProgressScreen } from "./src/screens/ProgressScreen";
+import { AccountScreen } from "./src/screens/AccountScreen";
 import { WorkoutScreen } from "./src/screens/WorkoutScreen";
 import { colors, spacing } from "./src/theme";
-import { emptyAppData, loadAppData, saveAppData } from "./src/storage/appStore";
+import { createEmptyAppData, emptyAppData, loadAppData, saveAppData } from "./src/storage/appStore";
 import { AppData, AppTab, NutritionLog, ProgressDraft, SamplePlan, UserProfile, WorkoutDraft } from "./src/types";
 import { formatDateLabel, toDateKey } from "./src/utils/date";
 
@@ -47,7 +49,7 @@ function mergeById<T extends { id: string }>(remoteItems: T[], localItems: T[]):
   return Array.from(map.values());
 }
 
-function mergeSnapshot(local: AppData, remote: AppData): AppData {
+function mergeSnapshot(local: AppData, remote: Omit<AppData, "sync">): AppData {
   const normalizedRemoteWorkouts = (remote.workouts ?? []).map((entry) => ({
     ...entry,
     createdAt: entry.createdAt ?? new Date().toISOString(),
@@ -68,8 +70,13 @@ function mergeSnapshot(local: AppData, remote: AppData): AppData {
     },
     progressEntries: mergeById(remote.progressEntries ?? [], local.progressEntries).sort((a, b) =>
       b.date.localeCompare(a.date)
-    )
+    ),
+    sync: local.sync
   };
+}
+
+function withUnique<T>(items: T[], value: T): T[] {
+  return items.includes(value) ? items : [...items, value];
 }
 
 export default function App() {
@@ -78,6 +85,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>("dashboard");
   const [samplePlan, setSamplePlan] = useState<SamplePlan | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const appDataRef = useRef(appData);
+
+  useEffect(() => {
+    appDataRef.current = appData;
+  }, [appData]);
 
   useEffect(() => {
     let mounted = true;
@@ -130,7 +142,76 @@ export default function App() {
     () => appData.nutritionByDate[today] ?? makeNutritionLog(today),
     [appData.nutritionByDate, today]
   );
-  const unsyncedCount = appData.workouts.filter((entry) => !entry.syncedAt).length;
+  const pendingSummary = useMemo(() => {
+    const workouts = appData.workouts.filter((entry) => !entry.syncedAt).length;
+    const nutrition = appData.sync.nutritionPendingDates.length;
+    const progress = appData.sync.progressPendingIds.length;
+    const profile = appData.sync.profilePending;
+    return {
+      workouts,
+      nutrition,
+      progress,
+      profile,
+      total: workouts + nutrition + progress + (profile ? 1 : 0),
+      lastSuccessfulSyncAt: appData.sync.lastSuccessfulSyncAt
+    };
+  }, [appData.sync, appData.workouts]);
+
+  function setProfilePending(pending: boolean) {
+    const nowIso = new Date().toISOString();
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        profilePending: pending,
+        lastSuccessfulSyncAt: pending ? prev.sync.lastSuccessfulSyncAt : nowIso
+      }
+    }));
+  }
+
+  function addNutritionPending(date: string) {
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        nutritionPendingDates: withUnique(prev.sync.nutritionPendingDates, date)
+      }
+    }));
+  }
+
+  function resolveNutritionPending(date: string) {
+    const nowIso = new Date().toISOString();
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        nutritionPendingDates: prev.sync.nutritionPendingDates.filter((item) => item !== date),
+        lastSuccessfulSyncAt: nowIso
+      }
+    }));
+  }
+
+  function addProgressPending(id: string) {
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        progressPendingIds: withUnique(prev.sync.progressPendingIds, id)
+      }
+    }));
+  }
+
+  function resolveProgressPending(id: string) {
+    const nowIso = new Date().toISOString();
+    setAppData((prev) => ({
+      ...prev,
+      sync: {
+        ...prev.sync,
+        progressPendingIds: prev.sync.progressPendingIds.filter((item) => item !== id),
+        lastSuccessfulSyncAt: nowIso
+      }
+    }));
+  }
 
   useEffect(() => {
     if (!isReady) {
@@ -143,7 +224,13 @@ export default function App() {
       if (!mounted || !snapshot) {
         return;
       }
-      setAppData((prev) => mergeSnapshot(prev, snapshot));
+      setAppData((prev) => ({
+        ...mergeSnapshot(prev, snapshot),
+        sync: {
+          ...prev.sync,
+          lastSuccessfulSyncAt: new Date().toISOString()
+        }
+      }));
     });
 
     return () => {
@@ -152,35 +239,50 @@ export default function App() {
   }, [isReady]);
 
   useEffect(() => {
-    if (!isReady || unsyncedCount === 0 || syncing) {
+    if (!isReady || pendingSummary.total === 0 || syncing) {
       return;
     }
 
     const timer = setTimeout(() => {
-      void retryUnsyncedWorkouts();
+      void syncPendingChanges();
     }, 1200);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [isReady, syncing, unsyncedCount]);
+  }, [isReady, syncing, pendingSummary.total]);
 
-  function completeOnboarding(profile: UserProfile) {
+  async function completeOnboarding(profile: UserProfile) {
     setAppData((prev) => ({
       ...prev,
-      profile
+      profile,
+      sync: {
+        ...prev.sync,
+        profilePending: true
+      }
     }));
-    void syncProfile(profile);
+
+    const synced = await syncProfile(profile);
+    if (synced) {
+      setProfilePending(false);
+    } else {
+      setProfilePending(true);
+    }
   }
 
   function markWorkoutSynced(workoutId: string) {
+    const nowIso = new Date().toISOString();
     setAppData((prev) => ({
       ...prev,
       workouts: prev.workouts.map((entry) =>
         entry.id === workoutId
-          ? { ...entry, syncedAt: new Date().toISOString() }
+          ? { ...entry, syncedAt: nowIso }
           : entry
-      )
+      ),
+      sync: {
+        ...prev.sync,
+        lastSuccessfulSyncAt: nowIso
+      }
     }));
   }
 
@@ -206,18 +308,64 @@ export default function App() {
     }
   }
 
-  async function retryUnsyncedWorkouts() {
-    const pending = appData.workouts.filter((entry) => !entry.syncedAt);
-    if (pending.length === 0 || syncing) {
+  async function syncPendingChanges(options: { pullSnapshot?: boolean } = {}) {
+    if (syncing) {
       return;
     }
 
     setSyncing(true);
     try {
-      for (const workout of pending) {
+      const current = appDataRef.current;
+
+      if (current.profile && current.sync.profilePending) {
+        const syncedProfile = await syncProfile(current.profile);
+        if (syncedProfile) {
+          setProfilePending(false);
+        }
+      }
+
+      for (const date of current.sync.nutritionPendingDates) {
+        const log = current.nutritionByDate[date];
+        if (!log) {
+          resolveNutritionPending(date);
+          continue;
+        }
+        const synced = await syncNutritionLog(log);
+        if (synced) {
+          resolveNutritionPending(date);
+        }
+      }
+
+      for (const entryId of current.sync.progressPendingIds) {
+        const entry = current.progressEntries.find((item) => item.id === entryId);
+        if (!entry) {
+          resolveProgressPending(entryId);
+          continue;
+        }
+        const synced = await syncProgressEntry(entry);
+        if (synced) {
+          resolveProgressPending(entryId);
+        }
+      }
+
+      const pendingWorkouts = current.workouts.filter((entry) => !entry.syncedAt);
+      for (const workout of pendingWorkouts) {
         const synced = await syncWorkoutLog(workout);
         if (synced) {
           markWorkoutSynced(workout.id);
+        }
+      }
+
+      if (options.pullSnapshot) {
+        const snapshot = await fetchSnapshot();
+        if (snapshot) {
+          setAppData((prev) => ({
+            ...mergeSnapshot(prev, snapshot),
+            sync: {
+              ...prev.sync,
+              lastSuccessfulSyncAt: new Date().toISOString()
+            }
+          }));
         }
       }
     } finally {
@@ -233,7 +381,15 @@ export default function App() {
         [nextLog.date]: nextLog
       }
     }));
-    void syncNutritionLog(nextLog);
+
+    void (async () => {
+      const synced = await syncNutritionLog(nextLog);
+      if (synced) {
+        resolveNutritionPending(nextLog.date);
+      } else {
+        addNutritionPending(nextLog.date);
+      }
+    })();
   }
 
   function handleAddProgress(draft: ProgressDraft) {
@@ -257,10 +413,46 @@ export default function App() {
       progressEntries: [entry, ...prev.progressEntries]
     }));
 
-    if (nextProfile) {
-      void syncProfile(nextProfile);
+    void (async () => {
+      const progressSynced = await syncProgressEntry(entry);
+      if (progressSynced) {
+        resolveProgressPending(entry.id);
+      } else {
+        addProgressPending(entry.id);
+      }
+
+      if (nextProfile) {
+        const profileSynced = await syncProfile(nextProfile);
+        setProfilePending(!profileSynced);
+      }
+    })();
+  }
+
+  async function handleSaveProfile(profile: UserProfile) {
+    setAppData((prev) => ({
+      ...prev,
+      profile
+    }));
+    setProfilePending(true);
+    const synced = await syncProfile(profile);
+    setProfilePending(!synced);
+  }
+
+  async function handleResetAllData() {
+    setSyncing(true);
+    try {
+      await clearRemoteData();
+    } finally {
+      setSyncing(false);
     }
-    void syncProgressEntry(entry);
+
+    setSamplePlan(null);
+    setActiveTab("dashboard");
+    setAppData(createEmptyAppData());
+  }
+
+  function handleSyncNow() {
+    void syncPendingChanges({ pullSnapshot: true });
   }
 
   if (!isReady) {
@@ -297,9 +489,9 @@ export default function App() {
                 nutritionLog={nutritionLog}
                 progressEntries={appData.progressEntries}
                 samplePlan={samplePlan}
-                unsyncedCount={unsyncedCount}
+                pendingSummary={pendingSummary}
                 syncing={syncing}
-                onRetrySync={retryUnsyncedWorkouts}
+                onRetrySync={handleSyncNow}
               />
             ) : null}
 
@@ -320,6 +512,17 @@ export default function App() {
                 profile={appData.profile}
                 entries={appData.progressEntries}
                 onAddProgress={handleAddProgress}
+              />
+            ) : null}
+
+            {activeTab === "account" ? (
+              <AccountScreen
+                profile={appData.profile}
+                pendingSummary={pendingSummary}
+                syncing={syncing}
+                onSaveProfile={handleSaveProfile}
+                onSyncNow={handleSyncNow}
+                onResetAllData={handleResetAllData}
               />
             ) : null}
           </View>
