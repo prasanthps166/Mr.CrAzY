@@ -1,6 +1,8 @@
 # Fitness App Monorepo
 
-Initial project scaffold for a fitness app with:
+Fitness tracking app with Android-ready Expo mobile UI, local persistence, and API sync.
+
+## Apps
 
 - `apps/mobile`: Expo React Native app
 - `apps/api`: Node.js + TypeScript API
@@ -27,17 +29,36 @@ npm install
 npm run dev:api
 ```
 
-3. Run mobile app:
+3. Start mobile dev server:
 
 ```bash
 npm run dev:mobile
 ```
 
-4. (Optional) Start local Postgres:
+4. Launch Android:
+
+```bash
+npm run android
+```
+
+5. (Optional) Start local Postgres:
 
 ```bash
 docker compose -f infra/docker-compose.yml up -d
 ```
+
+## Mobile Features
+
+- Onboarding with profile + goal setup
+- Dashboard with streak, weekly volume, calories, and dynamic plan
+- Workout logger with offline-first save + API sync status
+- Nutrition tracker with calories/macros/water and target progress
+- Progress tracker for weight/body-fat/waist history
+
+## Android API Note
+
+Mobile sync uses `http://10.0.2.2:4000` on Android emulator (maps to your host machine).
+Run the API before logging workouts if you want immediate sync.
 
 ## API Endpoints
 

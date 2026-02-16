@@ -1,40 +1,245 @@
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
-const todaysPlan = [
-  { label: "Warm-up", value: "10 min mobility" },
-  { label: "Main workout", value: "Upper body strength" },
-  { label: "Nutrition", value: "2,600 kcal target" }
-];
+import { fetchSamplePlan, syncWorkoutLog } from "./src/api/fitnessApi";
+import { TabBar } from "./src/components/TabBar";
+import { DashboardScreen } from "./src/screens/DashboardScreen";
+import { NutritionScreen } from "./src/screens/NutritionScreen";
+import { OnboardingScreen } from "./src/screens/OnboardingScreen";
+import { ProgressScreen } from "./src/screens/ProgressScreen";
+import { WorkoutScreen } from "./src/screens/WorkoutScreen";
+import { colors, spacing } from "./src/theme";
+import { emptyAppData, loadAppData, saveAppData } from "./src/storage/appStore";
+import { AppData, AppTab, NutritionLog, ProgressDraft, SamplePlan, UserProfile, WorkoutDraft } from "./src/types";
+import { formatDateLabel, toDateKey } from "./src/utils/date";
+
+function makeNutritionLog(date: string): NutritionLog {
+  return {
+    date,
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    waterLiters: 0
+  };
+}
+
+function createId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export default function App() {
+  const [appData, setAppData] = useState<AppData>(emptyAppData);
+  const [isReady, setIsReady] = useState(false);
+  const [activeTab, setActiveTab] = useState<AppTab>("dashboard");
+  const [samplePlan, setSamplePlan] = useState<SamplePlan | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    loadAppData().then((loaded) => {
+      if (mounted) {
+        setAppData(loaded);
+        setIsReady(true);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    saveAppData(appData).catch(() => {
+      // Non-blocking save.
+    });
+  }, [appData, isReady]);
+
+  const goal = appData.profile?.goal;
+
+  useEffect(() => {
+    if (!goal) {
+      setSamplePlan(null);
+      return;
+    }
+
+    let mounted = true;
+
+    fetchSamplePlan().then((plan) => {
+      if (mounted) {
+        setSamplePlan(plan);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [goal]);
+
+  const today = toDateKey();
+  const nutritionLog = useMemo(
+    () => appData.nutritionByDate[today] ?? makeNutritionLog(today),
+    [appData.nutritionByDate, today]
+  );
+  const unsyncedCount = appData.workouts.filter((entry) => !entry.syncedAt).length;
+
+  function completeOnboarding(profile: UserProfile) {
+    setAppData((prev) => ({
+      ...prev,
+      profile
+    }));
+  }
+
+  function markWorkoutSynced(workoutId: string) {
+    setAppData((prev) => ({
+      ...prev,
+      workouts: prev.workouts.map((entry) =>
+        entry.id === workoutId
+          ? { ...entry, syncedAt: new Date().toISOString() }
+          : entry
+      )
+    }));
+  }
+
+  async function handleCreateWorkout(draft: WorkoutDraft) {
+    const workout = {
+      id: createId("wk"),
+      date: today,
+      workoutType: draft.workoutType,
+      durationMinutes: draft.durationMinutes,
+      notes: draft.notes,
+      createdAt: new Date().toISOString(),
+      syncedAt: null
+    };
+
+    setAppData((prev) => ({
+      ...prev,
+      workouts: [workout, ...prev.workouts]
+    }));
+
+    const synced = await syncWorkoutLog(workout);
+    if (synced) {
+      markWorkoutSynced(workout.id);
+    }
+  }
+
+  async function retryUnsyncedWorkouts() {
+    const pending = appData.workouts.filter((entry) => !entry.syncedAt);
+    if (pending.length === 0 || syncing) {
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      for (const workout of pending) {
+        const synced = await syncWorkoutLog(workout);
+        if (synced) {
+          markWorkoutSynced(workout.id);
+        }
+      }
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  function handleSaveNutrition(nextLog: NutritionLog) {
+    setAppData((prev) => ({
+      ...prev,
+      nutritionByDate: {
+        ...prev.nutritionByDate,
+        [nextLog.date]: nextLog
+      }
+    }));
+  }
+
+  function handleAddProgress(draft: ProgressDraft) {
+    const entry = {
+      id: createId("prog"),
+      date: today,
+      weightKg: draft.weightKg,
+      bodyFatPct: draft.bodyFatPct,
+      waistCm: draft.waistCm
+    };
+
+    setAppData((prev) => ({
+      ...prev,
+      profile: prev.profile
+        ? { ...prev.profile, currentWeightKg: draft.weightKg }
+        : prev.profile,
+      progressEntries: [entry, ...prev.progressEntries]
+    }));
+  }
+
+  if (!isReady) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={styles.loadingText}>Loading FitTrack...</Text>
+        </View>
+        <StatusBar style="dark" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <Text style={styles.brand}>FitTrack</Text>
-        <Text style={styles.headline}>Your daily fitness check-in</Text>
+      <View style={styles.orbTopLeft} />
+      <View style={styles.orbBottomRight} />
 
-        <View style={styles.metricRow}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Steps</Text>
-            <Text style={styles.metricValue}>6,240</Text>
+      {!appData.profile ? (
+        <OnboardingScreen onComplete={completeOnboarding} />
+      ) : (
+        <View style={styles.appContent}>
+          <View style={styles.header}>
+            <Text style={styles.headerBrand}>FitTrack</Text>
+            <Text style={styles.headerDate}>{formatDateLabel(today)}</Text>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Water</Text>
-            <Text style={styles.metricValue}>1.8L</Text>
-          </View>
-        </View>
 
-        <View style={styles.planCard}>
-          <Text style={styles.planTitle}>Today&apos;s Plan</Text>
-          {todaysPlan.map((item) => (
-            <View key={item.label} style={styles.planItem}>
-              <Text style={styles.planLabel}>{item.label}</Text>
-              <Text style={styles.planValue}>{item.value}</Text>
-            </View>
-          ))}
+          <View style={styles.screenWrap}>
+            {activeTab === "dashboard" ? (
+              <DashboardScreen
+                profile={appData.profile}
+                workouts={appData.workouts}
+                nutritionLog={nutritionLog}
+                progressEntries={appData.progressEntries}
+                samplePlan={samplePlan}
+                unsyncedCount={unsyncedCount}
+                syncing={syncing}
+                onRetrySync={retryUnsyncedWorkouts}
+              />
+            ) : null}
+
+            {activeTab === "workout" ? (
+              <WorkoutScreen workouts={appData.workouts} onCreateWorkout={handleCreateWorkout} />
+            ) : null}
+
+            {activeTab === "nutrition" ? (
+              <NutritionScreen
+                profile={appData.profile}
+                nutritionLog={nutritionLog}
+                onSaveNutrition={handleSaveNutrition}
+              />
+            ) : null}
+
+            {activeTab === "progress" ? (
+              <ProgressScreen
+                profile={appData.profile}
+                entries={appData.progressEntries}
+                onAddProgress={handleAddProgress}
+              />
+            ) : null}
+          </View>
+
+          <TabBar activeTab={activeTab} onChangeTab={setActiveTab} />
         </View>
-      </View>
+      )}
       <StatusBar style="dark" />
     </SafeAreaView>
   );
@@ -43,73 +248,54 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f2f6ef"
+    backgroundColor: colors.pageBg
   },
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 18
+  appContent: {
+    flex: 1
   },
-  brand: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#1f4a2a",
-    marginBottom: 8
+  header: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm
   },
-  headline: {
-    fontSize: 16,
-    color: "#38513f",
-    marginBottom: 20
+  headerBrand: {
+    fontSize: 30,
+    fontWeight: "900",
+    color: colors.inkStrong
   },
-  metricRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#dde8d8"
-  },
-  metricLabel: {
-    fontSize: 12,
-    color: "#5b6b60",
-    marginBottom: 8
-  },
-  metricValue: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#1d3224"
-  },
-  planCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#dde8d8"
-  },
-  planTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1d3224",
-    marginBottom: 12
-  },
-  planItem: {
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#eef3eb"
-  },
-  planLabel: {
-    fontSize: 12,
-    color: "#5b6b60",
-    marginBottom: 4
-  },
-  planValue: {
-    fontSize: 15,
-    color: "#233e2c",
+  headerDate: {
+    marginTop: 2,
+    color: colors.inkMuted,
     fontWeight: "600"
   },
+  screenWrap: {
+    flex: 1
+  },
+  orbTopLeft: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "#dff1e5",
+    top: -80,
+    left: -40
+  },
+  orbBottomRight: {
+    position: "absolute",
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: "#d3e7ff",
+    bottom: -110,
+    right: -100
+  },
+  loadingWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  loadingText: {
+    color: colors.inkMuted,
+    fontWeight: "600"
+  }
 });
