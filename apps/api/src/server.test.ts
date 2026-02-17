@@ -25,6 +25,13 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<JsonRes
   };
 }
 
+function toDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 before(async () => {
   tempDir = await mkdtemp(join(tmpdir(), "fittrack-api-test-"));
 
@@ -226,6 +233,53 @@ test("workout create/list/delete works", async () => {
 
   const listAfterDelete = await requestJson<{ count: number }>("/api/v1/workouts/logs");
   assert.equal(listAfterDelete.body.count, 0);
+});
+
+test("sample plan adapts to recent strength frequency", async () => {
+  const baseline = await requestJson<{
+    weeklyPlan: Array<{ day: string; focus: string; durationMinutes: number }>;
+  }>("/api/v1/plans/sample?goal=gain_muscle");
+
+  assert.equal(baseline.status, 200);
+  assert.equal(baseline.body.weeklyPlan.length, 3);
+
+  for (let index = 0; index < 3; index += 1) {
+    const date = new Date();
+    date.setDate(date.getDate() - index);
+
+    const createResult = await requestJson<{ data: { id: string } }>("/api/v1/workouts/logs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        id: `wk_plan_${index}`,
+        date: toDateKey(date),
+        workoutType: "strength",
+        durationMinutes: 55,
+        exerciseEntries: [
+          {
+            id: `ex_plan_${index}`,
+            name: "Barbell Bench Press",
+            sets: 4,
+            reps: 6,
+            weightKg: 70 + index
+          }
+        ],
+        intensityRpe: 8,
+        createdAt: new Date().toISOString()
+      })
+    });
+
+    assert.equal(createResult.status, 201);
+  }
+
+  const progressed = await requestJson<{
+    weeklyPlan: Array<{ day: string; focus: string; durationMinutes: number }>;
+  }>("/api/v1/plans/sample?goal=gain_muscle");
+
+  assert.equal(progressed.status, 200);
+  assert.equal(progressed.body.weeklyPlan.length, 4);
 });
 
 test("nutrition put/delete works", async () => {

@@ -4,10 +4,12 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 
 import { WORKOUT_TYPE_LABELS } from "../constants";
 import { colors, radii, spacing } from "../theme";
-import { WorkoutDraft, WorkoutExerciseEntry, WorkoutLog, WorkoutType } from "../types";
+import { FitnessGoal, WorkoutDraft, WorkoutExerciseEntry, WorkoutLog, WorkoutType } from "../types";
 import { formatDateLabel } from "../utils/date";
+import { getWorkoutDraftGuidance } from "../utils/scienceTraining";
 
 interface WorkoutScreenProps {
+  goal: FitnessGoal;
   workouts: WorkoutLog[];
   onCreateWorkout: (draft: WorkoutDraft) => Promise<void>;
   onUpdateWorkout: (id: string, draft: WorkoutDraft) => Promise<void>;
@@ -172,6 +174,7 @@ function toRpeText(rpe: number | undefined): string {
 }
 
 export function WorkoutScreen({
+  goal,
   workouts,
   onCreateWorkout,
   onUpdateWorkout,
@@ -191,6 +194,46 @@ export function WorkoutScreen({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const recentWorkouts = useMemo(() => workouts.slice(0, 8), [workouts]);
   const templates = useMemo(() => [...BUILTIN_TEMPLATES, ...customTemplates], [customTemplates]);
+  const draftPreview = useMemo<WorkoutDraft>(() => {
+    const duration = Number(durationText);
+    const intensity = Number(intensityRpeText);
+    const calories = Number(caloriesBurnedText);
+
+    const exerciseEntries = exerciseRows.flatMap((row) => {
+      const name = row.name.trim();
+      const sets = Number(row.setsText);
+      const reps = Number(row.repsText);
+      const weight = Number(row.weightText);
+
+      if (!name || !Number.isFinite(sets) || !Number.isFinite(reps) || sets < 1 || reps < 1) {
+        return [];
+      }
+
+      return [
+        {
+          id: row.id,
+          name,
+          sets: Math.round(sets),
+          reps: Math.round(reps),
+          weightKg: Number.isFinite(weight) && weight >= 0 ? Number(weight.toFixed(1)) : undefined
+        }
+      ];
+    });
+
+    return {
+      workoutType,
+      durationMinutes: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 0,
+      exerciseEntries,
+      intensityRpe: Number.isFinite(intensity) ? Number(intensity.toFixed(1)) : undefined,
+      caloriesBurned: Number.isFinite(calories) ? Math.round(calories) : undefined,
+      templateName: templateNameText.trim() ? templateNameText.trim() : undefined,
+      notes: notes.trim() ? notes.trim() : undefined
+    };
+  }, [caloriesBurnedText, durationText, exerciseRows, intensityRpeText, notes, templateNameText, workoutType]);
+  const scienceGuidance = useMemo(
+    () => getWorkoutDraftGuidance(goal, draftPreview, workouts),
+    [draftPreview, goal, workouts]
+  );
 
   useEffect(() => {
     void (async () => {
@@ -443,6 +486,28 @@ export function WorkoutScreen({
       <Text style={styles.sectionTitle}>Log Workout</Text>
       <Text style={styles.subTitle}>Track exercises, intensity, calories, and reusable templates.</Text>
 
+      <View style={styles.guidanceCard}>
+        <Text style={styles.sectionSubTitle}>Science-Based Guidance</Text>
+        <Text style={styles.guidanceMeta}>
+          Target effort: RPE {scienceGuidance.targetRpe.min}-{scienceGuidance.targetRpe.max} | target duration:{" "}
+          {scienceGuidance.targetDuration.min}-{scienceGuidance.targetDuration.max} min
+        </Text>
+        <Text style={styles.guidanceText}>{scienceGuidance.sessionMessage}</Text>
+
+        {scienceGuidance.warnings.map((line, index) => (
+          <Text key={`warning-${index}`} style={styles.guidanceWarning}>
+            {line}
+          </Text>
+        ))}
+
+        {scienceGuidance.progressionHints.map((line, index) => (
+          <View key={`hint-${index}`} style={styles.guidanceRow}>
+            <Text style={styles.guidanceBullet}>{index + 1}.</Text>
+            <Text style={styles.guidanceHint}>{line}</Text>
+          </View>
+        ))}
+      </View>
+
       <View style={styles.templatesCard}>
         <Text style={styles.sectionSubTitle}>Templates</Text>
         {templates.length === 0 ? <Text style={styles.emptyText}>No templates saved yet.</Text> : null}
@@ -657,6 +722,43 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     color: colors.inkMuted,
     marginBottom: spacing.md
+  },
+  guidanceCard: {
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: spacing.md,
+    marginBottom: spacing.md
+  },
+  guidanceMeta: {
+    marginTop: spacing.xs,
+    color: colors.inkMuted,
+    fontSize: 12
+  },
+  guidanceText: {
+    marginTop: spacing.sm,
+    color: colors.inkSoft
+  },
+  guidanceWarning: {
+    marginTop: spacing.xs,
+    color: colors.warning,
+    fontWeight: "600"
+  },
+  guidanceRow: {
+    marginTop: spacing.xs,
+    flexDirection: "row",
+    alignItems: "flex-start"
+  },
+  guidanceBullet: {
+    width: 20,
+    color: colors.accent,
+    fontWeight: "800"
+  },
+  guidanceHint: {
+    flex: 1,
+    color: colors.inkSoft,
+    fontSize: 12
   },
   templatesCard: {
     backgroundColor: colors.card,

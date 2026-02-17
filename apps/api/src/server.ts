@@ -84,25 +84,81 @@ const authLoginSchema = z.object({
   password: z.string().min(1).max(120)
 });
 
-const goalPlanMap: Record<FitnessGoal, Array<{ day: string; focus: string; durationMinutes: number }>> = {
-  lose_weight: [
-    { day: "Monday", focus: "Lower body + incline walk", durationMinutes: 55 },
-    { day: "Wednesday", focus: "Upper body circuit", durationMinutes: 50 },
-    { day: "Friday", focus: "Full body strength", durationMinutes: 60 },
-    { day: "Saturday", focus: "Zone-2 cardio", durationMinutes: 40 }
-  ],
-  gain_muscle: [
-    { day: "Monday", focus: "Push day", durationMinutes: 65 },
-    { day: "Tuesday", focus: "Pull day", durationMinutes: 65 },
-    { day: "Thursday", focus: "Leg day", durationMinutes: 70 },
-    { day: "Saturday", focus: "Accessory + core", durationMinutes: 50 }
-  ],
-  maintain: [
-    { day: "Monday", focus: "Full body strength", durationMinutes: 55 },
-    { day: "Wednesday", focus: "HIIT + core", durationMinutes: 40 },
-    { day: "Friday", focus: "Mobility + easy cardio", durationMinutes: 45 }
-  ]
+const goalPlanMap: Record<
+  FitnessGoal,
+  {
+    base: Array<{ day: string; focus: string; durationMinutes: number }>;
+    progressed: Array<{ day: string; focus: string; durationMinutes: number }>;
+  }
+> = {
+  lose_weight: {
+    base: [
+      { day: "Monday", focus: "Full body strength (RPE 7-8)", durationMinutes: 55 },
+      { day: "Wednesday", focus: "Zone-2 cardio + core", durationMinutes: 45 },
+      { day: "Friday", focus: "Full body strength (RPE 7-8)", durationMinutes: 55 }
+    ],
+    progressed: [
+      { day: "Monday", focus: "Lower body strength + incline walk", durationMinutes: 60 },
+      { day: "Tuesday", focus: "Zone-2 cardio", durationMinutes: 40 },
+      { day: "Thursday", focus: "Upper body strength + core", durationMinutes: 55 },
+      { day: "Saturday", focus: "Interval cardio (hard/easy repeats)", durationMinutes: 35 }
+    ]
+  },
+  gain_muscle: {
+    base: [
+      { day: "Monday", focus: "Full body A (compounds + accessories)", durationMinutes: 65 },
+      { day: "Wednesday", focus: "Full body B (progressive overload)", durationMinutes: 65 },
+      { day: "Friday", focus: "Full body C (higher rep accessories)", durationMinutes: 60 }
+    ],
+    progressed: [
+      { day: "Monday", focus: "Upper (top set + backoff sets)", durationMinutes: 70 },
+      { day: "Tuesday", focus: "Lower (squat hinge split)", durationMinutes: 70 },
+      { day: "Thursday", focus: "Upper (volume focus)", durationMinutes: 70 },
+      { day: "Saturday", focus: "Lower + core (volume focus)", durationMinutes: 65 }
+    ]
+  },
+  maintain: {
+    base: [
+      { day: "Monday", focus: "Full body strength", durationMinutes: 55 },
+      { day: "Wednesday", focus: "Cardio intervals + core", durationMinutes: 40 },
+      { day: "Friday", focus: "Mobility + easy cardio", durationMinutes: 45 }
+    ],
+    progressed: [
+      { day: "Monday", focus: "Upper strength (RPE 7-8)", durationMinutes: 60 },
+      { day: "Wednesday", focus: "Lower strength + conditioning", durationMinutes: 60 },
+      { day: "Friday", focus: "Mixed hypertrophy + mobility", durationMinutes: 55 }
+    ]
+  }
 };
+
+function parseDateKey(value: string): Date | null {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
+}
+
+function isWithinLastDays(dateKey: string, referenceDate: Date, days: number): boolean {
+  const date = parseDateKey(dateKey);
+  if (!date) {
+    return false;
+  }
+  const end = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const start = new Date(end);
+  start.setDate(end.getDate() - (days - 1));
+  return date >= start && date <= end;
+}
+
+function getPlanForGoal(goal: FitnessGoal, workouts: StoredWorkoutLog[]): Array<{ day: string; focus: string; durationMinutes: number }> {
+  const recentStrengthCount = workouts.filter(
+    (entry) => entry.workoutType === "strength" && isWithinLastDays(entry.date, new Date(), 14)
+  ).length;
+
+  return recentStrengthCount >= 3
+    ? goalPlanMap[goal].progressed
+    : goalPlanMap[goal].base;
+}
 
 function replaceOrPushWorkout(data: AppData, workout: StoredWorkoutLog) {
   const index = data.workouts.findIndex((entry) => entry.id === workout.id);
@@ -402,7 +458,7 @@ export function createServer() {
 
     res.json({
       goal,
-      weeklyPlan: goalPlanMap[goal],
+      weeklyPlan: getPlanForGoal(goal, data.workouts),
       caloriesTarget: data.profile?.dailyCalorieTarget ?? 2400
     });
   });

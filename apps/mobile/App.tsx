@@ -908,6 +908,7 @@ export default function App() {
 
             {activeTab === "workout" ? (
               <WorkoutScreen
+                goal={appData.profile.goal}
                 workouts={appData.workouts}
                 onCreateWorkout={handleCreateWorkout}
                 onUpdateWorkout={handleUpdateWorkout}

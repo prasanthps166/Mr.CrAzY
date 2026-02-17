@@ -4,6 +4,7 @@ import { FALLBACK_PLANS, GOAL_LABELS } from "../constants";
 import { colors, radii, spacing } from "../theme";
 import { NutritionLog, ProgressEntry, SamplePlan, UserProfile, WorkoutLog } from "../types";
 import { getWeeklyWorkoutCount, getWorkoutStreak } from "../utils/date";
+import { getScienceBasedInsight } from "../utils/scienceTraining";
 
 interface DashboardScreenProps {
   profile: UserProfile;
@@ -41,6 +42,7 @@ export function DashboardScreen({
   const lastSyncLabel = pendingSummary.lastSuccessfulSyncAt
     ? pendingSummary.lastSuccessfulSyncAt.slice(0, 10)
     : "Never";
+  const scienceInsight = getScienceBasedInsight(profile.goal, workouts);
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -77,6 +79,43 @@ export function DashboardScreen({
             <Text style={styles.planDuration}>{item.durationMinutes} min</Text>
           </View>
         ))}
+      </View>
+
+      <View style={styles.scienceCard}>
+        <Text style={styles.planTitle}>Science-Based Check</Text>
+        <Text style={styles.scienceFocus}>{scienceInsight.focusMessage}</Text>
+
+        <Text style={styles.scienceLabel}>Weekly Muscle Volume</Text>
+        {scienceInsight.weeklyVolume.map((item) => (
+          <View key={item.group} style={styles.landmarkRow}>
+            <Text style={styles.landmarkGroup}>{item.label}</Text>
+            <Text style={styles.landmarkValue}>
+              {item.sets} sets (target {item.target.min}-{item.target.max})
+            </Text>
+            <Text
+              style={[
+                styles.landmarkStatus,
+                item.status === "low"
+                  ? styles.statusLow
+                  : item.status === "high"
+                    ? styles.statusHigh
+                    : styles.statusOnTarget
+              ]}
+            >
+              {item.status === "low" ? "Low" : item.status === "high" ? "High" : "On target"}
+            </Text>
+          </View>
+        ))}
+
+        <Text style={styles.scienceLabel}>Progression Signals</Text>
+        {scienceInsight.progressionTips.slice(0, 2).map((tip, index) => (
+          <View key={`tip-${index}`} style={styles.tipRow}>
+            <Text style={styles.tipBullet}>{index + 1}.</Text>
+            <Text style={styles.tipText}>{tip}</Text>
+          </View>
+        ))}
+
+        <Text style={styles.scienceRecovery}>{scienceInsight.recoveryMessage}</Text>
       </View>
 
       <View style={styles.nutritionCard}>
@@ -185,6 +224,71 @@ const styles = StyleSheet.create({
   planDuration: {
     color: colors.accent,
     fontWeight: "700"
+  },
+  scienceCard: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: radii.lg,
+    padding: spacing.md
+  },
+  scienceFocus: {
+    color: colors.inkSoft,
+    marginBottom: spacing.sm
+  },
+  scienceLabel: {
+    color: colors.inkSoft,
+    fontWeight: "800",
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs
+  },
+  landmarkRow: {
+    paddingVertical: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: "#ecf2e8"
+  },
+  landmarkGroup: {
+    color: colors.inkStrong,
+    fontWeight: "700"
+  },
+  landmarkValue: {
+    color: colors.inkMuted,
+    fontSize: 12,
+    marginTop: 2
+  },
+  landmarkStatus: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  statusLow: {
+    color: colors.warning
+  },
+  statusHigh: {
+    color: colors.danger
+  },
+  statusOnTarget: {
+    color: colors.accent
+  },
+  tipRow: {
+    marginTop: spacing.xs,
+    flexDirection: "row",
+    alignItems: "flex-start"
+  },
+  tipBullet: {
+    width: 20,
+    color: colors.accent,
+    fontWeight: "800"
+  },
+  tipText: {
+    flex: 1,
+    color: colors.inkSoft
+  },
+  scienceRecovery: {
+    marginTop: spacing.sm,
+    color: colors.warning,
+    fontWeight: "600"
   },
   nutritionCard: {
     marginTop: spacing.lg,
