@@ -118,6 +118,10 @@ export async function syncWorkoutLog(log: WorkoutLog): Promise<boolean> {
         date: log.date,
         workoutType: log.workoutType,
         durationMinutes: log.durationMinutes,
+        exerciseEntries: log.exerciseEntries,
+        intensityRpe: log.intensityRpe,
+        caloriesBurned: log.caloriesBurned,
+        templateName: log.templateName,
         notes: log.notes,
         createdAt: log.createdAt,
         syncedAt: log.syncedAt

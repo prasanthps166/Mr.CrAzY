@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { AppData } from "../types";
+import { AppData, WorkoutExerciseEntry, WorkoutLog } from "../types";
 
 const STORAGE_KEY = "@fittrack/app-data/v1";
 
@@ -34,7 +34,81 @@ export function createEmptyAppData(): AppData {
 
 export const emptyAppData: AppData = createEmptyAppData();
 
+function sanitizeExerciseEntries(input: unknown): WorkoutExerciseEntry[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input.flatMap((item, index) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const row = item as Partial<WorkoutExerciseEntry>;
+    if (typeof row.name !== "string" || !row.name.trim()) {
+      return [];
+    }
+
+    const sets = Number(row.sets);
+    const reps = Number(row.reps);
+    if (!Number.isFinite(sets) || !Number.isFinite(reps) || sets < 1 || reps < 1) {
+      return [];
+    }
+
+    const weight = Number(row.weightKg);
+
+    return [
+      {
+        id: typeof row.id === "string" && row.id.trim() ? row.id : `ex_local_${index}`,
+        name: row.name.trim(),
+        sets: Math.round(sets),
+        reps: Math.round(reps),
+        weightKg: Number.isFinite(weight) && weight >= 0 ? weight : undefined
+      }
+    ];
+  });
+}
+
+function sanitizeWorkoutLog(input: unknown, index: number): WorkoutLog | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const row = input as Partial<WorkoutLog>;
+  const duration = Number(row.durationMinutes);
+  const intensity = Number(row.intensityRpe);
+  const calories = Number(row.caloriesBurned);
+
+  return {
+    id: typeof row.id === "string" && row.id.trim() ? row.id : `wk_local_${index}`,
+    date: typeof row.date === "string" ? row.date : new Date().toISOString().slice(0, 10),
+    workoutType:
+      row.workoutType === "strength" || row.workoutType === "cardio" || row.workoutType === "mobility"
+        ? row.workoutType
+        : "strength",
+    durationMinutes: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 30,
+    exerciseEntries: sanitizeExerciseEntries(row.exerciseEntries),
+    intensityRpe: Number.isFinite(intensity) && intensity >= 1 && intensity <= 10
+      ? Number(intensity.toFixed(1))
+      : undefined,
+    caloriesBurned: Number.isFinite(calories) && calories >= 0 ? Math.round(calories) : undefined,
+    templateName: typeof row.templateName === "string" && row.templateName.trim()
+      ? row.templateName.trim()
+      : undefined,
+    notes: typeof row.notes === "string" && row.notes.trim() ? row.notes.trim() : undefined,
+    createdAt: typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString(),
+    syncedAt: typeof row.syncedAt === "string" ? row.syncedAt : null
+  };
+}
+
 function sanitize(input: Partial<AppData>): AppData {
+  const workouts = Array.isArray(input.workouts)
+    ? input.workouts.flatMap((entry, index) => {
+        const sanitized = sanitizeWorkoutLog(entry, index);
+        return sanitized ? [sanitized] : [];
+      })
+    : [];
+
   return {
     auth: {
       userId: input.auth?.userId ?? null,
@@ -42,7 +116,7 @@ function sanitize(input: Partial<AppData>): AppData {
       token: input.auth?.token ?? null
     },
     profile: input.profile ?? null,
-    workouts: Array.isArray(input.workouts) ? input.workouts : [],
+    workouts,
     nutritionByDate: input.nutritionByDate ?? {},
     progressEntries: Array.isArray(input.progressEntries) ? input.progressEntries : [],
     sync: {

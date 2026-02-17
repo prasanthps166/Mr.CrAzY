@@ -24,7 +24,8 @@
         "POST_NOTIFICATIONS"
       ],
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.mrcrazy.fittrackmobile"
     },
     "plugins": [
       "expo-notifications"

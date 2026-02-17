@@ -73,7 +73,8 @@ npm run check
 - Guest offline mode (`local-user`) for local-only tracking
 - Onboarding with profile + goal setup
 - Dashboard with streak, weekly volume, calories, and dynamic plan
-- Workout logger with offline-first save + API sync status
+- Gym knowledge hub tab with goal-based playbooks, training principles, recovery and safety guidance, and exercise library
+- Workout logger with exercise-level entries (sets/reps/weight), RPE, calories burned, reusable templates, and offline-first API sync status
 - Nutrition tracker with calories/macros/water and target progress
 - Progress tracker for weight/body-fat/waist history
 - Account tab for editing profile/targets, pending sync visibility, manual sync, and reset

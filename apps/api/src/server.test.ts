@@ -109,12 +109,81 @@ test("profile roundtrip works", async () => {
   assert.equal(getResult.body.data?.dailyCalorieTarget, profile.dailyCalorieTarget);
 });
 
+test("profile id is always scoped to request user", async () => {
+  const unique = Date.now().toString(36);
+  const password = "password123";
+
+  const registerResult = await requestJson<{
+    token: string;
+    user: {
+      id: string;
+      email: string;
+    };
+  }>("/api/v1/auth/register", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ email: `scope_${unique}@example.com`, password })
+  });
+
+  assert.equal(registerResult.status, 201);
+
+  const putResult = await requestJson<{ data: { id: string } }>("/api/v1/profile", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${registerResult.body.token}`
+    },
+    body: JSON.stringify({
+      id: "spoofed-profile-id",
+      name: "Scoped User",
+      age: 31,
+      heightCm: 178,
+      currentWeightKg: 77,
+      goal: "maintain",
+      dailyCalorieTarget: 2500,
+      proteinTargetGrams: 145
+    })
+  });
+
+  assert.equal(putResult.status, 200);
+  assert.equal(putResult.body.data.id, registerResult.body.user.id);
+
+  const getResult = await requestJson<{ data: { id: string } | null }>("/api/v1/profile", {
+    headers: {
+      Authorization: `Bearer ${registerResult.body.token}`
+    }
+  });
+
+  assert.equal(getResult.status, 200);
+  assert.equal(getResult.body.data?.id, registerResult.body.user.id);
+});
+
 test("workout create/list/delete works", async () => {
   const payload = {
     id: "wk_test_1",
     date: "2026-02-16",
     workoutType: "strength",
     durationMinutes: 48,
+    exerciseEntries: [
+      {
+        id: "ex_test_1",
+        name: "Barbell Bench Press",
+        sets: 4,
+        reps: 6,
+        weightKg: 70
+      },
+      {
+        id: "ex_test_2",
+        name: "Cable Row",
+        sets: 3,
+        reps: 10
+      }
+    ],
+    intensityRpe: 8.5,
+    caloriesBurned: 390,
+    templateName: "Push A",
     notes: "solid session",
     createdAt: new Date().toISOString()
   };
@@ -130,9 +199,23 @@ test("workout create/list/delete works", async () => {
   assert.equal(createResult.status, 201);
   assert.equal(createResult.body.data.id, payload.id);
 
-  const listResult = await requestJson<{ count: number }>("/api/v1/workouts/logs");
+  const listResult = await requestJson<{
+    count: number;
+    data: Array<{
+      id: string;
+      exerciseEntries: Array<{ name: string; sets: number; reps: number; weightKg?: number }>;
+      intensityRpe?: number;
+      caloriesBurned?: number;
+      templateName?: string;
+    }>;
+  }>("/api/v1/workouts/logs");
   assert.equal(listResult.status, 200);
   assert.equal(listResult.body.count, 1);
+  assert.equal(listResult.body.data[0]?.exerciseEntries.length, 2);
+  assert.equal(listResult.body.data[0]?.exerciseEntries[0]?.name, "Barbell Bench Press");
+  assert.equal(listResult.body.data[0]?.intensityRpe, 8.5);
+  assert.equal(listResult.body.data[0]?.caloriesBurned, 390);
+  assert.equal(listResult.body.data[0]?.templateName, "Push A");
 
   const deleteResult = await requestJson<{ message: string }>("/api/v1/workouts/logs/wk_test_1", {
     method: "DELETE"

@@ -10,7 +10,8 @@ interface TabBarProps {
 
 const TAB_ITEMS: Array<{ key: AppTab; label: string; short: string }> = [
   { key: "dashboard", label: "Dashboard", short: "Home" },
-  { key: "workout", label: "Workout", short: "Log" },
+  { key: "workout", label: "Workout", short: "Train" },
+  { key: "knowledge", label: "Knowledge", short: "Learn" },
   { key: "nutrition", label: "Nutrition", short: "Fuel" },
   { key: "progress", label: "Progress", short: "Track" },
   { key: "account", label: "Account", short: "You" }

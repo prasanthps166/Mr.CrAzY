@@ -10,6 +10,14 @@ import { config } from "./config.js";
 export type FitnessGoal = "lose_weight" | "gain_muscle" | "maintain";
 export type WorkoutType = "strength" | "cardio" | "mobility";
 
+export interface WorkoutExerciseEntry {
+  id: string;
+  name: string;
+  sets: number;
+  reps: number;
+  weightKg?: number;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -26,6 +34,10 @@ export interface WorkoutLog {
   date: string;
   workoutType: WorkoutType;
   durationMinutes: number;
+  exerciseEntries: WorkoutExerciseEntry[];
+  intensityRpe?: number;
+  caloriesBurned?: number;
+  templateName?: string;
   notes?: string;
   createdAt: string;
   syncedAt: string | null;
@@ -128,6 +140,74 @@ function toNumber(value: number | string | null | undefined): number {
   return Number(value ?? 0);
 }
 
+function sanitizeExerciseEntries(input: unknown): WorkoutExerciseEntry[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input.flatMap((item, index) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const row = item as Partial<WorkoutExerciseEntry>;
+    if (typeof row.name !== "string" || !row.name.trim()) {
+      return [];
+    }
+
+    const sets = Number(row.sets);
+    const reps = Number(row.reps);
+
+    if (!Number.isFinite(sets) || !Number.isFinite(reps) || sets < 1 || reps < 1) {
+      return [];
+    }
+
+    const weight = Number(row.weightKg);
+
+    return [
+      {
+        id: typeof row.id === "string" && row.id.trim() ? row.id : `ex_${index}`,
+        name: row.name.trim(),
+        sets: Math.round(sets),
+        reps: Math.round(reps),
+        weightKg: Number.isFinite(weight) && weight >= 0 ? weight : undefined
+      }
+    ];
+  });
+}
+
+function sanitizeWorkoutLog(input: unknown, index: number): WorkoutLog | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const row = input as Partial<WorkoutLog>;
+  const duration = Number(row.durationMinutes);
+  const intensity = Number(row.intensityRpe);
+  const calories = Number(row.caloriesBurned);
+
+  return {
+    id: typeof row.id === "string" && row.id.trim() ? row.id : `wk_${index}`,
+    date: typeof row.date === "string" ? row.date : new Date().toISOString().slice(0, 10),
+    workoutType:
+      row.workoutType === "strength" || row.workoutType === "cardio" || row.workoutType === "mobility"
+        ? row.workoutType
+        : "strength",
+    durationMinutes: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 30,
+    exerciseEntries: sanitizeExerciseEntries(row.exerciseEntries),
+    intensityRpe: Number.isFinite(intensity) && intensity >= 1 && intensity <= 10
+      ? Number(intensity.toFixed(1))
+      : undefined,
+    caloriesBurned: Number.isFinite(calories) && calories >= 0 ? Math.round(calories) : undefined,
+    templateName: typeof row.templateName === "string" && row.templateName.trim()
+      ? row.templateName.trim()
+      : undefined,
+    notes: typeof row.notes === "string" && row.notes.trim() ? row.notes.trim() : undefined,
+    createdAt: typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString(),
+    syncedAt: typeof row.syncedAt === "string" ? row.syncedAt : null
+  };
+}
+
 function toIso(value: string | Date | null | undefined): string | null {
   if (value == null) {
     return null;
@@ -147,9 +227,16 @@ function toPublicUser(user: AuthUser): AuthPublicUser {
 }
 
 function sanitizeAppData(input: Partial<AppData>): AppData {
+  const workouts = Array.isArray(input.workouts)
+    ? input.workouts.flatMap((entry, index) => {
+        const sanitized = sanitizeWorkoutLog(entry, index);
+        return sanitized ? [sanitized] : [];
+      })
+    : [];
+
   return {
     profile: input.profile ?? null,
-    workouts: Array.isArray(input.workouts) ? input.workouts : [],
+    workouts,
     nutritionByDate: input.nutritionByDate ?? {},
     progressEntries: Array.isArray(input.progressEntries) ? input.progressEntries : []
   };
@@ -285,6 +372,10 @@ async function ensurePostgresSchema() {
       workout_date date not null,
       workout_type text not null check (workout_type in ('strength', 'cardio', 'mobility')),
       duration_minutes int not null,
+      exercise_entries jsonb not null default '[]'::jsonb,
+      intensity_rpe numeric(4,1),
+      calories_burned int,
+      template_name text,
       notes text,
       created_at timestamptz not null,
       synced_at timestamptz,
@@ -313,6 +404,15 @@ async function ensurePostgresSchema() {
       updated_at timestamptz not null default now(),
       primary key (user_id, id)
     );
+
+    alter table if exists app_workout_logs_v2
+      add column if not exists exercise_entries jsonb not null default '[]'::jsonb;
+    alter table if exists app_workout_logs_v2
+      add column if not exists intensity_rpe numeric(4,1);
+    alter table if exists app_workout_logs_v2
+      add column if not exists calories_burned int;
+    alter table if exists app_workout_logs_v2
+      add column if not exists template_name text;
   `);
 
   postgresSchemaReady = true;
@@ -445,11 +545,15 @@ async function readAppDataFromPostgres(userId: string): Promise<AppData> {
       workout_date: string;
       workout_type: WorkoutType;
       duration_minutes: number;
+      exercise_entries: unknown;
+      intensity_rpe: string | number | null;
+      calories_burned: number | null;
+      template_name: string | null;
       notes: string | null;
       created_at: Date | string;
       synced_at: Date | string | null;
     }>(
-      "select id, workout_date::text, workout_type, duration_minutes, notes, created_at, synced_at from app_workout_logs_v2 where user_id = $1 order by workout_date desc, created_at desc",
+      "select id, workout_date::text, workout_type, duration_minutes, exercise_entries, intensity_rpe, calories_burned, template_name, notes, created_at, synced_at from app_workout_logs_v2 where user_id = $1 order by workout_date desc, created_at desc",
       [userId]
     ),
     pg.query<{
@@ -494,6 +598,10 @@ async function readAppDataFromPostgres(userId: string): Promise<AppData> {
     date: row.workout_date,
     workoutType: row.workout_type,
     durationMinutes: row.duration_minutes,
+    exerciseEntries: sanitizeExerciseEntries(row.exercise_entries),
+    intensityRpe: row.intensity_rpe == null ? undefined : Number(row.intensity_rpe),
+    caloriesBurned: row.calories_burned == null ? undefined : row.calories_burned,
+    templateName: row.template_name ?? undefined,
     notes: row.notes ?? undefined,
     createdAt: toIso(row.created_at) ?? new Date().toISOString(),
     syncedAt: toIso(row.synced_at)
@@ -556,14 +664,18 @@ async function writeAppDataToPostgres(userId: string, data: AppData): Promise<vo
     await client.query("delete from app_workout_logs_v2 where user_id = $1", [userId]);
     for (const workout of data.workouts) {
       await client.query(
-        `insert into app_workout_logs_v2 (user_id, id, workout_date, workout_type, duration_minutes, notes, created_at, synced_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        `insert into app_workout_logs_v2 (user_id, id, workout_date, workout_type, duration_minutes, exercise_entries, intensity_rpe, calories_burned, template_name, notes, created_at, synced_at)
+         values ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)`,
         [
           userId,
           workout.id,
           workout.date,
           workout.workoutType,
           workout.durationMinutes,
+          JSON.stringify(workout.exerciseEntries ?? []),
+          workout.intensityRpe ?? null,
+          workout.caloriesBurned ?? null,
+          workout.templateName ?? null,
           workout.notes ?? null,
           workout.createdAt,
           workout.syncedAt
@@ -832,4 +944,3 @@ export async function deleteAuthSession(token: string): Promise<void> {
 
   await deleteAuthSessionInFile(token);
 }
-

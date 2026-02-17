@@ -20,6 +20,7 @@ import {
   syncWorkoutLog
 } from "./src/api/fitnessApi";
 import { TabBar } from "./src/components/TabBar";
+import { KnowledgeScreen } from "./src/screens/KnowledgeScreen";
 import { DashboardScreen } from "./src/screens/DashboardScreen";
 import { NutritionScreen } from "./src/screens/NutritionScreen";
 import { OnboardingScreen } from "./src/screens/OnboardingScreen";
@@ -27,6 +28,7 @@ import { ProgressScreen } from "./src/screens/ProgressScreen";
 import { AccountScreen } from "./src/screens/AccountScreen";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { WorkoutScreen } from "./src/screens/WorkoutScreen";
+import { mergeSnapshot, updateWorkoutInList } from "./src/state/appState";
 import { colors, spacing } from "./src/theme";
 import { createEmptyAppData, emptyAppData, loadAppData, saveAppData } from "./src/storage/appStore";
 import {
@@ -60,63 +62,6 @@ function makeNutritionLog(date: string): NutritionLog {
 
 function createId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function mergeById<T extends { id: string }>(remoteItems: T[], localItems: T[]): T[] {
-  const map = new Map<string, T>();
-  for (const remoteItem of remoteItems) {
-    map.set(remoteItem.id, remoteItem);
-  }
-  for (const localItem of localItems) {
-    map.set(localItem.id, localItem);
-  }
-  return Array.from(map.values());
-}
-
-function mergeSnapshot(local: AppData, remote: Omit<AppData, "auth" | "sync" | "settings">): AppData {
-  const deletedWorkoutIds = new Set(local.sync.deletedWorkoutIds);
-  const deletedNutritionDates = new Set(local.sync.deletedNutritionDates);
-  const deletedProgressIds = new Set(local.sync.deletedProgressIds);
-
-  const normalizedRemoteWorkouts = (remote.workouts ?? []).map((entry) => ({
-    ...entry,
-    createdAt: entry.createdAt ?? new Date().toISOString(),
-    syncedAt: entry.syncedAt ?? new Date().toISOString()
-  })).filter((entry) => !deletedWorkoutIds.has(entry.id));
-
-  const localWorkouts = local.workouts.filter((entry) => !deletedWorkoutIds.has(entry.id));
-
-  const filteredRemoteNutrition = Object.fromEntries(
-    Object.entries(remote.nutritionByDate ?? {}).filter(([date]) => !deletedNutritionDates.has(date))
-  );
-  const localNutrition = Object.fromEntries(
-    Object.entries(local.nutritionByDate).filter(([date]) => !deletedNutritionDates.has(date))
-  );
-
-  const filteredRemoteProgress = (remote.progressEntries ?? []).filter(
-    (entry) => !deletedProgressIds.has(entry.id)
-  );
-  const localProgress = local.progressEntries.filter((entry) => !deletedProgressIds.has(entry.id));
-
-  return {
-    auth: local.auth,
-    profile: local.profile ?? remote.profile ?? null,
-    workouts: mergeById(normalizedRemoteWorkouts, localWorkouts).sort((a, b) => {
-      if (a.date === b.date) {
-        return b.createdAt.localeCompare(a.createdAt);
-      }
-      return b.date.localeCompare(a.date);
-    }),
-    nutritionByDate: {
-      ...filteredRemoteNutrition,
-      ...localNutrition
-    },
-    progressEntries: mergeById(filteredRemoteProgress, localProgress).sort((a, b) =>
-      b.date.localeCompare(a.date)
-    ),
-    sync: local.sync,
-    settings: local.settings
-  };
 }
 
 function withUnique<T>(items: T[], value: T): T[] {
@@ -585,6 +530,10 @@ export default function App() {
       date: today,
       workoutType: draft.workoutType,
       durationMinutes: draft.durationMinutes,
+      exerciseEntries: draft.exerciseEntries,
+      intensityRpe: draft.intensityRpe,
+      caloriesBurned: draft.caloriesBurned,
+      templateName: draft.templateName,
       notes: draft.notes,
       createdAt: new Date().toISOString(),
       syncedAt: null
@@ -598,6 +547,23 @@ export default function App() {
     const synced = await syncWorkoutLog(workout);
     if (synced) {
       markWorkoutSynced(workout.id);
+    }
+  }
+
+  async function handleUpdateWorkout(workoutId: string, draft: WorkoutDraft) {
+    const next = updateWorkoutInList(appDataRef.current.workouts, workoutId, draft);
+    if (!next.updatedWorkout) {
+      return;
+    }
+
+    setAppData((prev) => ({
+      ...prev,
+      workouts: next.workouts
+    }));
+
+    const synced = await syncWorkoutLog(next.updatedWorkout);
+    if (synced) {
+      markWorkoutSynced(workoutId);
     }
   }
 
@@ -944,8 +910,13 @@ export default function App() {
               <WorkoutScreen
                 workouts={appData.workouts}
                 onCreateWorkout={handleCreateWorkout}
+                onUpdateWorkout={handleUpdateWorkout}
                 onDeleteWorkout={handleDeleteWorkout}
               />
+            ) : null}
+
+            {activeTab === "knowledge" ? (
+              <KnowledgeScreen profile={appData.profile} />
             ) : null}
 
             {activeTab === "nutrition" ? (

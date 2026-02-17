@@ -22,11 +22,23 @@ import {
   writeAppData
 } from "./store.js";
 
+const workoutExerciseSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(120),
+  sets: z.number().int().min(1).max(30),
+  reps: z.number().int().min(1).max(200),
+  weightKg: z.number().min(0).max(1000).optional()
+});
+
 const workoutLogSchema = z.object({
   id: z.string().min(1),
   date: z.string().date(),
   workoutType: z.enum(["strength", "cardio", "mobility"]),
   durationMinutes: z.number().int().positive().max(300),
+  exerciseEntries: z.array(workoutExerciseSchema).max(50).default([]),
+  intensityRpe: z.number().min(1).max(10).optional(),
+  caloriesBurned: z.number().int().min(0).max(5000).optional(),
+  templateName: z.string().min(1).max(80).optional(),
   notes: z.string().max(500).optional(),
   createdAt: z.string().datetime().optional(),
   syncedAt: z.string().datetime().nullable().optional()
@@ -357,7 +369,10 @@ export function createServer() {
     }
 
     const data = await readAppData(userId);
-    data.profile = parsed.data;
+    data.profile = {
+      ...parsed.data,
+      id: userId
+    };
     await writeAppData(data, userId);
     res.json({ data: data.profile });
   });

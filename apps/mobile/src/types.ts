@@ -2,6 +2,14 @@ export type FitnessGoal = "lose_weight" | "gain_muscle" | "maintain";
 
 export type WorkoutType = "strength" | "cardio" | "mobility";
 
+export interface WorkoutExerciseEntry {
+  id: string;
+  name: string;
+  sets: number;
+  reps: number;
+  weightKg?: number;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -18,6 +26,10 @@ export interface WorkoutLog {
   date: string;
   workoutType: WorkoutType;
   durationMinutes: number;
+  exerciseEntries: WorkoutExerciseEntry[];
+  intensityRpe?: number;
+  caloriesBurned?: number;
+  templateName?: string;
   notes?: string;
   createdAt: string;
   syncedAt: string | null;
@@ -87,6 +99,10 @@ export interface AppData {
 export interface WorkoutDraft {
   workoutType: WorkoutType;
   durationMinutes: number;
+  exerciseEntries: WorkoutExerciseEntry[];
+  intensityRpe?: number;
+  caloriesBurned?: number;
+  templateName?: string;
   notes?: string;
 }
 
@@ -96,4 +112,4 @@ export interface ProgressDraft {
   waistCm?: number;
 }
 
-export type AppTab = "dashboard" | "workout" | "nutrition" | "progress" | "account";
+export type AppTab = "dashboard" | "workout" | "knowledge" | "nutrition" | "progress" | "account";
