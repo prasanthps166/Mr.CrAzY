@@ -1,6 +1,14 @@
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  SafeAreaView,
+  StatusBar as RNStatusBar,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
 
 import {
   clearRemoteData,
@@ -85,6 +93,11 @@ export default function App() {
   const [samplePlan, setSamplePlan] = useState<SamplePlan | null>(null);
   const [syncing, setSyncing] = useState(false);
   const appDataRef = useRef(appData);
+  const androidTopInset = Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 0) : 0;
+  const safeAreaStyle = useMemo(
+    () => [styles.safeArea, androidTopInset > 0 ? { paddingTop: androidTopInset } : null],
+    [androidTopInset]
+  );
 
   useEffect(() => {
     appDataRef.current = appData;
@@ -160,7 +173,7 @@ export default function App() {
     void (async () => {
       const scheduled = await scheduleDailyReminder(
         time,
-        "FitTrack reminder",
+        "PulseFit reminder",
         "Log your workout and keep the streak alive."
       );
 
@@ -820,7 +833,7 @@ export default function App() {
 
     const scheduled = await scheduleDailyReminder(
       nextTime,
-      "FitTrack reminder",
+      "PulseFit reminder",
       "Log your workout and keep the streak alive."
     );
 
@@ -862,10 +875,10 @@ export default function App() {
 
   if (!isReady) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={safeAreaStyle}>
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={styles.loadingText}>Loading FitTrack...</Text>
+          <Text style={styles.loadingText}>Loading PulseFit...</Text>
         </View>
         <StatusBar style="dark" />
       </SafeAreaView>
@@ -873,7 +886,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={safeAreaStyle}>
       <View style={styles.orbTopLeft} />
       <View style={styles.orbBottomRight} />
 
@@ -888,7 +901,7 @@ export default function App() {
       ) : (
         <View style={styles.appContent}>
           <View style={styles.header}>
-            <Text style={styles.headerBrand}>FitTrack</Text>
+            <Text style={styles.headerBrand}>PulseFit</Text>
             <Text style={styles.headerDate}>{formatDateLabel(today)}</Text>
           </View>
 
@@ -972,6 +985,7 @@ const styles = StyleSheet.create({
     flex: 1
   },
   header: {
+    marginTop: spacing.xs,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm
   },

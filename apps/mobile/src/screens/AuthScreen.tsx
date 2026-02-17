@@ -62,7 +62,7 @@ export function AuthScreen({ onLogin, onRegister, onContinueGuest }: AuthScreenP
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={styles.hero}>
-        <Text style={styles.brand}>FitTrack</Text>
+        <Text style={styles.brand}>PulseFit</Text>
         <Text style={styles.title}>Sign in to sync your progress</Text>
         <Text style={styles.subtitle}>
           Create an account to keep your workouts and nutrition data on any device.

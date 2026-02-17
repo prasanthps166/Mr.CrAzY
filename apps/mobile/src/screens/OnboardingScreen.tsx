@@ -64,7 +64,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={styles.hero}>
-        <Text style={styles.brand}>FitTrack</Text>
+        <Text style={styles.brand}>PulseFit</Text>
         <Text style={styles.title}>Build your custom plan</Text>
         <Text style={styles.subtitle}>
           Add your profile once. The app will generate calorie and workout targets automatically.
