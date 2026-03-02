@@ -11,7 +11,23 @@ import { createServiceRoleClient, isSupabaseServiceConfigured } from "@/lib/supa
 
 export type MarketplacePriceFilter = "all" | "free" | "under_50" | "under_100";
 export type MarketplaceSort = "trending" | "newest" | "top_rated" | "best_selling";
-const MARKETPLACE_REVALIDATE_SECONDS = 90;
+const MARKETPLACE_REVALIDATE_SECONDS = 600;
+const MARKETPLACE_QUERY_TIMEOUT_MS = 2500;
+
+async function withTimeout<T>(promiseLike: PromiseLike<T>, timeoutMs = MARKETPLACE_QUERY_TIMEOUT_MS): Promise<T | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => resolve(null), timeoutMs);
+  });
+
+  const result = await Promise.race([Promise.resolve(promiseLike).catch(() => null), timeoutPromise]);
+
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+  }
+
+  return result as T | null;
+}
 
 type GetMarketplacePromptsOptions = {
   category?: string;
@@ -34,7 +50,7 @@ async function getMarketplacePromptsUncached(options?: GetMarketplacePromptsOpti
     minRating = 0,
     sort = "trending",
     tab = "all",
-    limit = 48,
+    limit = 24,
   } = options ?? {};
 
   let query = supabase.from("marketplace_prompts").select("*").eq("status", "approved");
@@ -66,14 +82,18 @@ async function getMarketplacePromptsUncached(options?: GetMarketplacePromptsOpti
   }
 
   query = query.limit(limit);
-  const { data: prompts } = await query;
+  const promptsResponse = await withTimeout(query);
+  const prompts = promptsResponse?.data;
   if (!prompts?.length) return [] as MarketplacePromptWithCreator[];
 
   const creatorIds = Array.from(new Set(prompts.map((item) => item.creator_id)));
-  const { data: creators } = await supabase
-    .from("creator_profiles")
-    .select("*")
-    .in("id", creatorIds);
+  const creatorsResponse = await withTimeout(
+    supabase
+      .from("creator_profiles")
+      .select("*")
+      .in("id", creatorIds),
+  );
+  const creators = creatorsResponse?.data;
 
   const creatorMap = new Map((creators ?? []).map((creator) => [creator.id, creator as CreatorProfile]));
 
@@ -111,7 +131,7 @@ export async function getMarketplacePrompts(options?: GetMarketplacePromptsOptio
     minRating = 0,
     sort = "trending",
     tab = "all",
-    limit = 48,
+    limit = 24,
   } = options ?? {};
 
   return getMarketplacePromptsCached(category, price, minRating, sort, tab, limit);
@@ -137,11 +157,14 @@ export async function getMarketplacePromptDetail(promptId: string, userId?: stri
     };
   }
 
-  const { data: promptRow } = await supabase
-    .from("marketplace_prompts")
-    .select("*")
-    .eq("id", promptId)
-    .single();
+  const promptResponse = await withTimeout(
+    supabase
+      .from("marketplace_prompts")
+      .select("*")
+      .eq("id", promptId)
+      .single(),
+  );
+  const promptRow = promptResponse?.data;
 
   if (!promptRow) {
     return {
@@ -153,15 +176,17 @@ export async function getMarketplacePromptDetail(promptId: string, userId?: stri
   }
 
   if (promptRow.status !== "approved") {
-    const { data: creatorProfile } = userId
-      ? await supabase
-          .from("creator_profiles")
-          .select("id")
-          .eq("id", promptRow.creator_id)
-          .eq("user_id", userId)
-          .maybeSingle()
+    const creatorProfileResponse = userId
+      ? await withTimeout(
+          supabase
+            .from("creator_profiles")
+            .select("id")
+            .eq("id", promptRow.creator_id)
+            .eq("user_id", userId)
+            .maybeSingle(),
+        )
       : { data: null };
-    if (!creatorProfile) {
+    if (!creatorProfileResponse?.data) {
       return {
         prompt: null as MarketplacePromptWithCreator | null,
         reviews: [] as MarketplacePromptReview[],
@@ -171,48 +196,61 @@ export async function getMarketplacePromptDetail(promptId: string, userId?: stri
     }
   }
 
-  const { data: creator } = await supabase
-    .from("creator_profiles")
-    .select("*")
-    .eq("id", promptRow.creator_id)
-    .single();
+  const [creatorResponse, reviewRowsResponse, moreRowsResponse, hasPurchasedResponse] = await Promise.all([
+    withTimeout(
+      supabase
+        .from("creator_profiles")
+        .select("*")
+        .eq("id", promptRow.creator_id)
+        .single(),
+    ),
+    withTimeout(
+      supabase
+        .from("prompt_ratings")
+        .select("*")
+        .eq("marketplace_prompt_id", promptId)
+        .order("created_at", { ascending: false }),
+    ),
+    withTimeout(
+      supabase
+        .from("marketplace_prompts")
+        .select("*")
+        .eq("creator_id", promptRow.creator_id)
+        .eq("status", "approved")
+        .neq("id", promptId)
+        .order("purchase_count", { ascending: false })
+        .limit(4),
+    ),
+    userId
+      ? withTimeout(
+          supabase
+            .from("prompt_purchases")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("marketplace_prompt_id", promptId)
+            .maybeSingle(),
+        )
+      : Promise.resolve(null),
+  ]);
 
-  const { data: reviewRows } = await supabase
-    .from("prompt_ratings")
-    .select("*")
-    .eq("marketplace_prompt_id", promptId)
-    .order("created_at", { ascending: false });
+  const creator = creatorResponse?.data;
+  const reviewRows = reviewRowsResponse?.data;
+  const moreRows = moreRowsResponse?.data;
 
   const reviewUserIds = Array.from(new Set((reviewRows ?? []).map((review) => review.user_id)));
-  const { data: users } = reviewUserIds.length
-    ? await supabase
-        .from("users")
-        .select("id, full_name, avatar_url")
-        .in("id", reviewUserIds)
+  const usersResponse = reviewUserIds.length
+    ? await withTimeout(
+        supabase
+          .from("users")
+          .select("id, full_name, avatar_url")
+          .in("id", reviewUserIds),
+      )
     : { data: [] as Pick<UserProfile, "id" | "full_name" | "avatar_url">[] };
+  const users = usersResponse?.data ?? [];
 
   const userMap = new Map((users ?? []).map((user) => [user.id, user]));
 
-  const { data: moreRows } = await supabase
-    .from("marketplace_prompts")
-    .select("*")
-    .eq("creator_id", promptRow.creator_id)
-    .eq("status", "approved")
-    .neq("id", promptId)
-    .order("purchase_count", { ascending: false })
-    .limit(4);
-
-  const hasPurchased = Boolean(
-    userId &&
-      (
-        await supabase
-          .from("prompt_purchases")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("marketplace_prompt_id", promptId)
-          .maybeSingle()
-      ).data,
-  );
+  const hasPurchased = Boolean(userId && hasPurchasedResponse?.data);
 
   return {
     prompt: {
@@ -403,10 +441,13 @@ async function getMarketplaceCategoriesUncached() {
   const supabase = createServiceRoleClient();
   if (!supabase) return ["All"];
 
-  const { data } = await supabase
-    .from("marketplace_prompts")
-    .select("category")
-    .eq("status", "approved");
+  const response = await withTimeout(
+    supabase
+      .from("marketplace_prompts")
+      .select("category")
+      .eq("status", "approved"),
+  );
+  const data = response?.data;
 
   const categories = Array.from(new Set((data ?? []).map((item) => item.category))).sort((a, b) =>
     a.localeCompare(b),

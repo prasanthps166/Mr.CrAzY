@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -5,6 +6,15 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getPromptById, getPrompts } from "@/lib/data";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "Generate AI Images",
+  description:
+    "Upload your photo, choose a prompt, and generate AI-transformed images with adjustable style strength.",
+  path: "/generate",
+  keywords: ["generate AI image", "img2img", "photo transformer", "AI photo editor"],
+});
 
 const GenerateModal = dynamic(
   () => import("@/components/GenerateModal").then((module) => module.GenerateModal),
@@ -25,9 +35,11 @@ type GeneratePageProps = {
 };
 
 export default async function GeneratePage({ searchParams }: GeneratePageProps) {
-  const prompts = await getPrompts({ limit: 12, sort: "trending" });
-  const selectedPrompt =
-    (searchParams.prompt ? await getPromptById(searchParams.prompt) : null) ?? prompts[0] ?? null;
+  const [prompts, selectedPromptById] = await Promise.all([
+    getPrompts({ limit: 12, sort: "trending" }),
+    searchParams.prompt ? getPromptById(searchParams.prompt) : Promise.resolve(null),
+  ]);
+  const selectedPrompt = selectedPromptById ?? prompts[0] ?? null;
 
   if (!selectedPrompt) {
     return (

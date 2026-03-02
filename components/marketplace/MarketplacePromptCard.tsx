@@ -13,7 +13,7 @@ export function MarketplacePromptCard({ prompt }: { prompt: MarketplacePromptWit
   const creatorName = prompt.creator?.display_name || "Community Creator";
 
   return (
-    <Link href={`/marketplace/${prompt.id}`} prefetch={false} className="group block">
+    <Link href={`/marketplace/${prompt.id}`} className="group block">
       <Card className="h-full overflow-hidden border-border/60 bg-card/70 transition hover:-translate-y-1 hover:border-primary/60 hover:shadow-xl">
         <div className="relative aspect-[4/5] overflow-hidden">
           <Image

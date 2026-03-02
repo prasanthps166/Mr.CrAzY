@@ -6,7 +6,36 @@ import { STARTER_PROMPTS } from "@/lib/starter-prompts";
 import { CommunityPostView, GenerationWithPrompt, Prompt, UserProfile } from "@/types";
 
 type PromptSort = "trending" | "newest" | "most_used";
-const PUBLIC_DATA_REVALIDATE_SECONDS = 90;
+const PUBLIC_DATA_REVALIDATE_SECONDS = 600;
+const PUBLIC_QUERY_TIMEOUT_MS = 2500;
+
+async function withTimeout<T>(promiseLike: PromiseLike<T>, timeoutMs = PUBLIC_QUERY_TIMEOUT_MS): Promise<T | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => resolve(null), timeoutMs);
+  });
+
+  const result = await Promise.race([Promise.resolve(promiseLike).catch(() => null), timeoutPromise]);
+
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+  }
+
+  return result as T | null;
+}
+
+function getFallbackCommunityFeed(limit = 20) {
+  return STARTER_PROMPTS.slice(0, limit).map((prompt, index) => ({
+    id: `sample-${index + 1}`,
+    likes: 10 + index * 3,
+    created_at: new Date(Date.now() - index * 3600 * 1000).toISOString(),
+    prompt_title: prompt.title,
+    prompt_category: prompt.category,
+    generated_image_url: prompt.example_image_url,
+    username: `Artist${index + 1}`,
+    user_avatar_url: null,
+  })) as CommunityPostView[];
+}
 
 function sortPrompts(prompts: Prompt[], sort: PromptSort) {
   const sorted = [...prompts];
@@ -56,8 +85,8 @@ async function getPromptsUncached(options?: GetPromptsOptions) {
 
       if (limit) query = query.limit(limit);
 
-      const { data } = await query;
-      if (data) return data as Prompt[];
+      const result = await withTimeout(query);
+      if (result?.data) return result.data as Prompt[];
     }
   }
 
@@ -104,8 +133,8 @@ async function getPromptByIdUncached(id: string) {
   if (isSupabaseServiceConfigured()) {
     const supabase = createServiceRoleClient();
     if (supabase) {
-      const { data } = await supabase.from("prompts").select("*").eq("id", id).single();
-      if (data) return data as Prompt;
+      const result = await withTimeout(supabase.from("prompts").select("*").eq("id", id).single());
+      if (result?.data) return result.data as Prompt;
     }
   }
   return STARTER_PROMPTS.find((prompt) => prompt.id === id) ?? null;
@@ -201,20 +230,11 @@ type GetCommunityFeedOptions = {
 
 async function getCommunityFeedUncached(options?: GetCommunityFeedOptions) {
   if (!isSupabaseServiceConfigured()) {
-    return STARTER_PROMPTS.slice(0, options?.limit ?? 20).map((prompt, index) => ({
-      id: `sample-${index + 1}`,
-      likes: 10 + index * 3,
-      created_at: new Date(Date.now() - index * 3600 * 1000).toISOString(),
-      prompt_title: prompt.title,
-      prompt_category: prompt.category,
-      generated_image_url: prompt.example_image_url,
-      username: `Artist${index + 1}`,
-      user_avatar_url: null,
-    })) as CommunityPostView[];
+    return getFallbackCommunityFeed(options?.limit ?? 20);
   }
 
   const supabase = createServiceRoleClient();
-  if (!supabase) return [];
+  if (!supabase) return getFallbackCommunityFeed(options?.limit ?? 20);
 
   let postsQuery = supabase.from("community_posts").select("*");
   const lowerBound = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
@@ -225,25 +245,33 @@ async function getCommunityFeedUncached(options?: GetCommunityFeedOptions) {
   }
   if (options?.limit) postsQuery = postsQuery.limit(options.limit);
 
-  const { data: postRows } = await postsQuery;
+  const postsResult = await withTimeout(postsQuery);
+  const postRows = postsResult?.data;
   if (!postRows || postRows.length === 0) return [];
 
   const generationIds = Array.from(new Set(postRows.map((post) => post.generation_id)));
   const userIds = Array.from(new Set(postRows.map((post) => post.user_id)));
 
-  const [{ data: generationRows }, { data: userRows }] = await Promise.all([
-    supabase
-      .from("generations")
-      .select("id, generated_image_url, prompt_id")
-      .in("id", generationIds),
-    supabase
-      .from("users")
-      .select("id, full_name, avatar_url")
-      .in("id", userIds),
-  ]);
+  const rowsResult = await withTimeout(
+    Promise.all([
+      supabase
+        .from("generations")
+        .select("id, generated_image_url, prompt_id")
+        .in("id", generationIds),
+      supabase
+        .from("users")
+        .select("id, full_name, avatar_url")
+        .in("id", userIds),
+    ]),
+  );
+  if (!rowsResult) return getFallbackCommunityFeed(options?.limit ?? 20);
+  const [generationResponse, userResponse] = rowsResult;
+  const generationRows = generationResponse.data;
+  const userRows = userResponse.data;
 
   const promptIds = Array.from(new Set((generationRows ?? []).map((generation) => generation.prompt_id)));
-  const { data: promptRows } = await supabase.from("prompts").select("id, title, category").in("id", promptIds);
+  const promptResult = await withTimeout(supabase.from("prompts").select("id, title, category").in("id", promptIds));
+  const promptRows = promptResult?.data;
 
   const generationMap = new Map((generationRows ?? []).map((generation) => [generation.id, generation]));
   const userMap = new Map((userRows ?? []).map((user) => [user.id, user]));
@@ -300,36 +328,50 @@ async function getPromptCommunityResultsUncached(promptId: string, limit = 12) {
   const supabase = createServiceRoleClient();
   if (!supabase) return [] as CommunityPostView[];
 
-  const { data: generations } = await supabase
-    .from("generations")
-    .select("id, generated_image_url, prompt_id")
-    .eq("prompt_id", promptId)
-    .eq("is_public", true)
-    .order("created_at", { ascending: false })
-    .limit(limit * 2);
+  const generationsResult = await withTimeout(
+    supabase
+      .from("generations")
+      .select("id, generated_image_url, prompt_id")
+      .eq("prompt_id", promptId)
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .limit(limit * 2),
+  );
+  const generations = generationsResult?.data;
 
   if (!generations || generations.length === 0) return [] as CommunityPostView[];
 
   const generationIds = generations.map((generation) => generation.id);
-  const { data: posts } = await supabase
-    .from("community_posts")
-    .select("*")
-    .in("generation_id", generationIds)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const postsResult = await withTimeout(
+    supabase
+      .from("community_posts")
+      .select("*")
+      .in("generation_id", generationIds)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  );
+  const posts = postsResult?.data;
 
   if (!posts || posts.length === 0) return [] as CommunityPostView[];
 
   const userIds = Array.from(new Set(posts.map((post) => post.user_id)));
-  const { data: users } = await supabase
-    .from("users")
-    .select("id, full_name, avatar_url")
-    .in("id", userIds);
-  const { data: prompt } = await supabase
-    .from("prompts")
-    .select("id, title, category")
-    .eq("id", promptId)
-    .single();
+  const promptAndUserResult = await withTimeout(
+    Promise.all([
+      supabase
+        .from("users")
+        .select("id, full_name, avatar_url")
+        .in("id", userIds),
+      supabase
+        .from("prompts")
+        .select("id, title, category")
+        .eq("id", promptId)
+        .single(),
+    ]),
+  );
+  if (!promptAndUserResult) return [] as CommunityPostView[];
+  const [usersResponse, promptResponse] = promptAndUserResult;
+  const users = usersResponse.data;
+  const prompt = promptResponse.data;
 
   const generationMap = new Map(generations.map((generation) => [generation.id, generation]));
   const userMap = new Map((users ?? []).map((user) => [user.id, user]));

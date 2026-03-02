@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -8,6 +9,7 @@ import { CopyButton } from "@/components/CopyButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getPromptById, getPromptCommunityResults } from "@/lib/data";
+import { buildMetadata } from "@/lib/seo";
 
 const GenerateModal = dynamic(
   () => import("@/components/GenerateModal").then((module) => module.GenerateModal),
@@ -27,11 +29,33 @@ type PromptDetailPageProps = {
   };
 };
 
-export default async function PromptDetailPage({ params }: PromptDetailPageProps) {
+export async function generateMetadata({ params }: PromptDetailPageProps): Promise<Metadata> {
   const prompt = await getPromptById(params.id);
-  if (!prompt) notFound();
 
-  const communityPosts = await getPromptCommunityResults(prompt.id);
+  if (!prompt) {
+    return buildMetadata({
+      title: "Prompt Not Found",
+      description: "The requested prompt does not exist or is no longer available.",
+      path: `/gallery/${params.id}`,
+      noIndex: true,
+    });
+  }
+
+  return buildMetadata({
+    title: `${prompt.title} Prompt`,
+    description: prompt.description,
+    path: `/gallery/${prompt.id}`,
+    images: [{ url: prompt.example_image_url, alt: prompt.title }],
+    keywords: [...prompt.tags, prompt.category, "AI prompt"],
+  });
+}
+
+export default async function PromptDetailPage({ params }: PromptDetailPageProps) {
+  const [prompt, communityPosts] = await Promise.all([
+    getPromptById(params.id),
+    getPromptCommunityResults(params.id),
+  ]);
+  if (!prompt) notFound();
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-10">

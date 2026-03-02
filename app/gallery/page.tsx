@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Search } from "lucide-react";
 
@@ -7,6 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PROMPT_CATEGORIES } from "@/lib/constants";
 import { getPrompts } from "@/lib/data";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "Prompt Gallery",
+  description:
+    "Explore trending AI prompts by category. Find portrait, anime, fantasy, and realistic styles for your next transformation.",
+  path: "/gallery",
+  keywords: ["AI prompts", "prompt styles", "trending prompts", "photo styles"],
+});
 
 type GalleryPageProps = {
   searchParams: {

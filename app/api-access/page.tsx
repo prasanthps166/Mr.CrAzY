@@ -1,6 +1,16 @@
+import type { Metadata } from "next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "API Access",
+  description:
+    "Integrate PromptGallery image transformation APIs for ecommerce, creator tools, and marketing workflows.",
+  path: "/api-access",
+  keywords: ["AI API", "image transformation API", "prompt API", "developer API"],
+});
 
 const API_PLANS = [
   { name: "Starter", price: "₹999/month", calls: "500 transformations/month" },

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AdBanner } from "@/components/AdBanner";
@@ -5,6 +6,15 @@ import { CommunityGrid } from "@/components/CommunityGrid";
 import { Button } from "@/components/ui/button";
 import { PROMPT_CATEGORIES } from "@/lib/constants";
 import { getCommunityFeed } from "@/lib/data";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "Community Creations",
+  description:
+    "Discover the latest public AI image transformations, most-liked creations, and trending visual styles from the community.",
+  path: "/community",
+  keywords: ["AI community", "user creations", "AI art feed", "promptgallery community"],
+});
 
 type CommunityPageProps = {
   searchParams: {
@@ -19,15 +29,17 @@ function categoryHref(category: string) {
 
 export default async function CommunityPage({ searchParams }: CommunityPageProps) {
   const category = searchParams.category ?? "All";
-  const weekTop = await getCommunityFeed({
-    category,
-    limit: 6,
-    mostLikedThisWeek: true,
-  });
-  const feed = await getCommunityFeed({
-    category,
-    limit: 24,
-  });
+  const [weekTop, feed] = await Promise.all([
+    getCommunityFeed({
+      category,
+      limit: 6,
+      mostLikedThisWeek: true,
+    }),
+    getCommunityFeed({
+      category,
+      limit: 24,
+    }),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-10">

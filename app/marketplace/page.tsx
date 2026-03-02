@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Fragment } from "react";
 import { Sparkles, Store } from "lucide-react";
@@ -12,6 +13,15 @@ import {
   getMarketplaceCategories,
   getMarketplacePrompts,
 } from "@/lib/marketplace";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "Prompt Marketplace",
+  description:
+    "Buy premium AI prompts from creators, discover top-rated styles, and unlock marketplace-only transformations.",
+  path: "/marketplace",
+  keywords: ["prompt marketplace", "buy AI prompts", "creator prompts", "premium AI styles"],
+});
 
 type MarketplacePageProps = {
   searchParams: {

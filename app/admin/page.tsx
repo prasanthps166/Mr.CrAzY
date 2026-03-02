@@ -1,8 +1,17 @@
+import type { Metadata } from "next";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { AdminDashboardClient } from "@/components/admin/AdminDashboardClient";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "Admin Dashboard",
+  description: "Administrative dashboard for PromptGallery.",
+  path: "/admin",
+  noIndex: true,
+});
 
 export default async function AdminPage() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Check, Sparkles } from "lucide-react";
@@ -9,10 +10,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FEATURED_EXAMPLES, PRICING } from "@/lib/constants";
 import { getCommunityFeed, getPrompts } from "@/lib/data";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "AI Photo Prompt Gallery",
+  description:
+    "Transform photos with AI styles in seconds. Browse curated prompts, generate instantly, and share your results.",
+  path: "/",
+  keywords: ["AI image generator", "photo to AI art", "prompt gallery", "image transformation"],
+});
 
 export default async function HomePage() {
-  const featuredPrompts = await getPrompts({ featuredOnly: true, limit: 6, sort: "trending" });
-  const communityPreview = await getCommunityFeed({ limit: 8 });
+  const [featuredPrompts, communityPreview] = await Promise.all([
+    getPrompts({ featuredOnly: true, limit: 6, sort: "trending" }),
+    getCommunityFeed({ limit: 8 }),
+  ]);
   const gallery = featuredPrompts.length
     ? featuredPrompts.map((item) => item.example_image_url)
     : FEATURED_EXAMPLES;

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
@@ -5,12 +6,34 @@ import { notFound } from "next/navigation";
 import { TrackEvent } from "@/components/analytics/TrackEvent";
 import { MarketplacePromptDetailClient } from "@/components/marketplace/MarketplacePromptDetailClient";
 import { getMarketplacePromptDetail } from "@/lib/marketplace";
+import { buildMetadata } from "@/lib/seo";
 
 type MarketplacePromptDetailPageProps = {
   params: {
     id: string;
   };
 };
+
+export async function generateMetadata({ params }: MarketplacePromptDetailPageProps): Promise<Metadata> {
+  const data = await getMarketplacePromptDetail(params.id, null);
+
+  if (!data.prompt) {
+    return buildMetadata({
+      title: "Marketplace Prompt Not Found",
+      description: "The requested marketplace prompt does not exist or is no longer available.",
+      path: `/marketplace/${params.id}`,
+      noIndex: true,
+    });
+  }
+
+  return buildMetadata({
+    title: `${data.prompt.title} - Marketplace Prompt`,
+    description: data.prompt.description,
+    path: `/marketplace/${data.prompt.id}`,
+    images: [{ url: data.prompt.cover_image_url, alt: data.prompt.title }],
+    keywords: [data.prompt.category, "marketplace prompt", "AI creator prompt"],
+  });
+}
 
 async function getServerUserId() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

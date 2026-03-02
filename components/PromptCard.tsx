@@ -14,7 +14,7 @@ export function PromptCard({ prompt }: PromptCardProps) {
   const isTrending = prompt.use_count >= 200;
 
   return (
-    <Link href={`/gallery/${prompt.id}`} prefetch={false} className="group block break-inside-avoid">
+    <Link href={`/gallery/${prompt.id}`} className="group block break-inside-avoid">
       <Card className="overflow-hidden border-border/60 bg-card/60 transition duration-300 hover:-translate-y-1 hover:border-primary/60 hover:shadow-xl">
         <div className="relative aspect-[4/5] overflow-hidden">
           <Image
