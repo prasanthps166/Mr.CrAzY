@@ -10,6 +10,8 @@
     "lint": "next lint",
     "test": "vitest",
     "test:run": "vitest run --reporter=verbose",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "check:guards": "node scripts/check-route-guards.mjs",
     "verify": "npm run lint && npm run test:run && npm run check:guards && npm run build && npm run typecheck --prefix mobile",
     "smoke:phase2": "node scripts/phase2-smoke.mjs",
@@ -43,6 +45,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.53.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

@@ -3,12 +3,13 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 
 import { AdBanner } from "@/components/AdBanner";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { PromptCard } from "@/components/PromptCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PROMPT_CATEGORIES } from "@/lib/constants";
 import { getPrompts } from "@/lib/data";
-import { buildMetadata } from "@/lib/seo";
+import { absoluteUrl, buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Prompt Gallery",
@@ -45,9 +46,27 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
     search,
     sort,
   });
+  const galleryJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Prompt Gallery",
+    url: absoluteUrl("/gallery"),
+    itemListElement: prompts.slice(0, 24).map((prompt, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: absoluteUrl(`/gallery/${prompt.id}`),
+      item: {
+        "@type": "CreativeWork",
+        name: prompt.title,
+        description: prompt.description,
+        image: prompt.example_image_url,
+      },
+    })),
+  };
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-10">
+      <JsonLd id="gallery-jsonld" value={galleryJsonLd} />
       <div className="mb-8 space-y-3">
         <h1 className="font-display text-4xl font-bold tracking-tight">Prompt Gallery</h1>
         <p className="text-muted-foreground">Browse curated styles and transform your photo in one click.</p>
@@ -68,8 +87,12 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
 
         <form className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
           <div className="relative">
+            <label htmlFor="gallery-search" className="sr-only">
+              Search prompts
+            </label>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id="gallery-search"
               name="search"
               defaultValue={search}
               placeholder="Search prompts, tags, categories..."
@@ -77,7 +100,11 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
             />
           </div>
           <input type="hidden" name="category" value={category === "All" ? "" : category} />
+          <label htmlFor="gallery-sort" className="sr-only">
+            Sort prompts
+          </label>
           <select
+            id="gallery-sort"
             name="sort"
             defaultValue={sort}
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"

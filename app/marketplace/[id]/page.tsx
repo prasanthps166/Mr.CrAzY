@@ -6,7 +6,8 @@ import { notFound } from "next/navigation";
 import { TrackEvent } from "@/components/analytics/TrackEvent";
 import { MarketplacePromptDetailClient } from "@/components/marketplace/MarketplacePromptDetailClient";
 import { getMarketplacePromptDetail } from "@/lib/marketplace";
-import { buildMetadata } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { absoluteUrl, buildMetadata } from "@/lib/seo";
 
 type MarketplacePromptDetailPageProps = {
   params: {
@@ -67,19 +68,69 @@ export default async function MarketplacePromptDetailPage({ params }: Marketplac
   const data = await getMarketplacePromptDetail(params.id, userId);
 
   if (!data.prompt) notFound();
+  const prompt = data.prompt;
+  const priceInr = Number(prompt.price_inr ?? prompt.price ?? 0).toFixed(2);
+  const productJsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: prompt.title,
+    description: prompt.description,
+    image: [prompt.cover_image_url, ...(prompt.example_images ?? [])].filter(Boolean),
+    sku: prompt.id,
+    category: prompt.category,
+    brand: {
+      "@type": "Brand",
+      name: prompt.creator?.display_name ?? "PromptGallery Creator",
+    },
+    offers: {
+      "@type": "Offer",
+      priceCurrency: "INR",
+      price: prompt.is_free ? "0.00" : priceInr,
+      availability: "https://schema.org/InStock",
+      url: absoluteUrl(`/marketplace/${prompt.id}`),
+    },
+  };
+
+  if ((prompt.rating_count ?? 0) > 0) {
+    productJsonLd.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: Number(prompt.rating_avg ?? 0).toFixed(2),
+      ratingCount: prompt.rating_count,
+    };
+  }
+
+  const reviewsForSchema = data.reviews.slice(0, 5).map((review) => ({
+    "@type": "Review",
+    reviewRating: {
+      "@type": "Rating",
+      ratingValue: review.rating,
+      bestRating: 5,
+      worstRating: 1,
+    },
+    author: {
+      "@type": "Person",
+      name: review.user?.full_name ?? "PromptGallery User",
+    },
+    reviewBody: review.review_text ?? "",
+    datePublished: review.created_at,
+  }));
+  if (reviewsForSchema.length) {
+    productJsonLd.review = reviewsForSchema;
+  }
 
   return (
     <>
+      <JsonLd id="marketplace-detail-jsonld" value={productJsonLd} />
       <TrackEvent
         eventType="marketplace_view"
         metadata={{
           source: "marketplace_detail",
-          marketplace_prompt_id: data.prompt.id,
-          category: data.prompt.category,
+          marketplace_prompt_id: prompt.id,
+          category: prompt.category,
         }}
       />
       <MarketplacePromptDetailClient
-        prompt={data.prompt}
+        prompt={prompt}
         reviews={data.reviews}
         moreFromCreator={data.moreFromCreator}
         initialHasPurchased={data.hasPurchased}

@@ -5,6 +5,7 @@ import { Sparkles, Store } from "lucide-react";
 
 import { TrackEvent } from "@/components/analytics/TrackEvent";
 import { MarketplacePromptCard } from "@/components/marketplace/MarketplacePromptCard";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -13,7 +14,7 @@ import {
   getMarketplaceCategories,
   getMarketplacePrompts,
 } from "@/lib/marketplace";
-import { buildMetadata } from "@/lib/seo";
+import { absoluteUrl, buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "Prompt Marketplace",
@@ -72,11 +73,37 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
       tab,
     }),
   ]);
+  const marketplaceJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Prompt Marketplace",
+    url: absoluteUrl("/marketplace"),
+    itemListElement: prompts.slice(0, 24).map((prompt, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: absoluteUrl(`/marketplace/${prompt.id}`),
+      item: {
+        "@type": "Product",
+        name: prompt.title,
+        description: prompt.description,
+        image: prompt.cover_image_url,
+        category: prompt.category,
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "INR",
+          price: prompt.is_free ? "0.00" : Number(prompt.price_inr ?? prompt.price ?? 0).toFixed(2),
+          availability: "https://schema.org/InStock",
+          url: absoluteUrl(`/marketplace/${prompt.id}`),
+        },
+      },
+    })),
+  };
 
   const ctaInsertIndex = Math.ceil(prompts.length / 2);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-10">
+      <JsonLd id="marketplace-jsonld" value={marketplaceJsonLd} />
       <TrackEvent
         eventType="marketplace_view"
         metadata={{
@@ -123,7 +150,11 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
         </div>
 
         <form className="grid w-full gap-3 sm:w-auto sm:grid-cols-4">
+          <label htmlFor="marketplace-category" className="sr-only">
+            Filter by category
+          </label>
           <select
+            id="marketplace-category"
             name="category"
             defaultValue={category}
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -135,7 +166,11 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
             ))}
           </select>
 
+          <label htmlFor="marketplace-price" className="sr-only">
+            Filter by price
+          </label>
           <select
+            id="marketplace-price"
             name="price"
             defaultValue={price}
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -146,7 +181,11 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
             <option value="under_100">Under ₹100</option>
           </select>
 
+          <label htmlFor="marketplace-rating" className="sr-only">
+            Filter by rating
+          </label>
           <select
+            id="marketplace-rating"
             name="rating"
             defaultValue={String(rating)}
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -157,7 +196,11 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
             <option value="5">5 Stars</option>
           </select>
 
+          <label htmlFor="marketplace-sort" className="sr-only">
+            Sort marketplace prompts
+          </label>
           <select
+            id="marketplace-sort"
             name="sort"
             defaultValue={sort}
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"

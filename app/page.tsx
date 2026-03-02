@@ -6,11 +6,12 @@ import { ArrowRight, Check, Sparkles } from "lucide-react";
 import { AdBanner } from "@/components/AdBanner";
 import { CommunityGrid } from "@/components/CommunityGrid";
 import { PromptCard } from "@/components/PromptCard";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FEATURED_EXAMPLES, PRICING } from "@/lib/constants";
 import { getCommunityFeed, getPrompts } from "@/lib/data";
-import { buildMetadata } from "@/lib/seo";
+import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
   title: "AI Photo Prompt Gallery",
@@ -25,12 +26,40 @@ export default async function HomePage() {
     getPrompts({ featuredOnly: true, limit: 6, sort: "trending" }),
     getCommunityFeed({ limit: 8 }),
   ]);
+  const homeJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: SITE_NAME,
+      url: absoluteUrl("/"),
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${absoluteUrl("/gallery")}?search={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: SITE_NAME,
+      applicationCategory: "MultimediaApplication",
+      operatingSystem: "Web",
+      description: SITE_DESCRIPTION,
+      url: absoluteUrl("/"),
+      offers: {
+        "@type": "Offer",
+        price: "0.00",
+        priceCurrency: "INR",
+      },
+    },
+  ];
   const gallery = featuredPrompts.length
     ? featuredPrompts.map((item) => item.example_image_url)
     : FEATURED_EXAMPLES;
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-4 py-12 sm:py-16">
+      <JsonLd id="home-jsonld" value={homeJsonLd} />
       <section className="animate-fade-up grid items-center gap-10 lg:grid-cols-2">
         <div className="space-y-6">
           <p className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-xs text-muted-foreground">
@@ -148,15 +177,11 @@ export default async function HomePage() {
           Faster uploads, ad rewards, and push notifications in the mobile app.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
-          <Button asChild>
-            <a href="#" aria-disabled>
-              Get Android APK
-            </a>
+          <Button type="button" disabled>
+            Get Android APK
           </Button>
-          <Button variant="secondary" asChild>
-            <a href="#" aria-disabled>
-              Google Play (Coming Soon)
-            </a>
+          <Button type="button" variant="secondary" disabled>
+            Google Play (Coming Soon)
           </Button>
         </div>
       </section>

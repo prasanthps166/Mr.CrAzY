@@ -6,10 +6,11 @@ import dynamic from "next/dynamic";
 import { TrackEvent } from "@/components/analytics/TrackEvent";
 import { CommunityGrid } from "@/components/CommunityGrid";
 import { CopyButton } from "@/components/CopyButton";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getPromptById, getPromptCommunityResults } from "@/lib/data";
-import { buildMetadata } from "@/lib/seo";
+import { absoluteUrl, buildMetadata } from "@/lib/seo";
 
 const GenerateModal = dynamic(
   () => import("@/components/GenerateModal").then((module) => module.GenerateModal),
@@ -56,9 +57,20 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
     getPromptCommunityResults(params.id),
   ]);
   if (!prompt) notFound();
+  const promptJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CreativeWork",
+    name: prompt.title,
+    description: prompt.description,
+    image: prompt.example_image_url,
+    keywords: prompt.tags.join(", "),
+    url: absoluteUrl(`/gallery/${prompt.id}`),
+    about: prompt.category,
+  };
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-10">
+      <JsonLd id="gallery-detail-jsonld" value={promptJsonLd} />
       <TrackEvent
         eventType="prompt_view"
         metadata={{

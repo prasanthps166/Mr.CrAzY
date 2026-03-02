@@ -26,6 +26,11 @@ type CreditState = {
   isPro: boolean;
 };
 
+function isActiveRoute(pathname: string, href: string) {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -139,14 +144,17 @@ export function Navbar() {
             <span>PromptGallery</span>
           </Link>
 
-          <nav className="hidden items-center gap-5 md:flex">
+          <nav aria-label="Primary navigation" className="hidden items-center gap-5 md:flex">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={`text-sm transition-colors ${
-                  pathname === item.href ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                  isActiveRoute(pathname, item.href)
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
+                aria-current={isActiveRoute(pathname, item.href) ? "page" : undefined}
               >
                 {item.label}
               </Link>
@@ -155,10 +163,11 @@ export function Navbar() {
               <Link
                 href="/dashboard"
                 className={`text-sm transition-colors ${
-                  pathname === "/dashboard"
+                  isActiveRoute(pathname, "/dashboard")
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
+                aria-current={isActiveRoute(pathname, "/dashboard") ? "page" : undefined}
               >
                 Dashboard
               </Link>
@@ -167,10 +176,11 @@ export function Navbar() {
               <Link
                 href="/dashboard/api"
                 className={`text-sm transition-colors ${
-                  pathname === "/dashboard/api"
+                  isActiveRoute(pathname, "/dashboard/api")
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
+                aria-current={isActiveRoute(pathname, "/dashboard/api") ? "page" : undefined}
               >
                 API Keys
               </Link>
@@ -179,10 +189,11 @@ export function Navbar() {
               <Link
                 href="/creator"
                 className={`text-sm transition-colors ${
-                  pathname === "/creator" || pathname.startsWith("/creator/")
+                  isActiveRoute(pathname, "/creator")
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
+                aria-current={isActiveRoute(pathname, "/creator") ? "page" : undefined}
               >
                 Creator
               </Link>
@@ -191,8 +202,11 @@ export function Navbar() {
               <Link
                 href="/admin"
                 className={`text-sm transition-colors ${
-                  pathname === "/admin" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                  isActiveRoute(pathname, "/admin")
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
+                aria-current={isActiveRoute(pathname, "/admin") ? "page" : undefined}
               >
                 Admin
               </Link>
@@ -225,7 +239,7 @@ export function Navbar() {
                   </Link>
                 </Button>
               )}
-              <Button variant="ghost" size="icon" onClick={signOut}>
+              <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sign out">
                 <LogOut className="h-4 w-4" />
               </Button>
             </>
@@ -234,24 +248,32 @@ export function Navbar() {
 
         <div className="flex items-center gap-2 md:hidden">
           <ThemeToggle />
-          <Button size="icon" variant="ghost" onClick={() => setMobileOpen((state) => !state)}>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setMobileOpen((state) => !state)}
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-controls="mobile-navigation"
+            aria-expanded={mobileOpen}
+          >
             {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </Button>
         </div>
       </div>
 
       {mobileOpen ? (
-        <div className="border-t border-border/60 bg-background px-4 py-3 md:hidden">
+        <div id="mobile-navigation" className="border-t border-border/60 bg-background px-4 py-3 md:hidden">
           <div className="mb-3">
             <CreditBadge credits={credits.credits} isPro={credits.isPro} />
           </div>
-          <nav className="flex flex-col gap-2">
+          <nav aria-label="Mobile navigation" className="flex flex-col gap-2">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-current={isActiveRoute(pathname, item.href) ? "page" : undefined}
               >
                 {item.label}
               </Link>
@@ -261,6 +283,7 @@ export function Navbar() {
                 href="/dashboard"
                 onClick={() => setMobileOpen(false)}
                 className="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-current={isActiveRoute(pathname, "/dashboard") ? "page" : undefined}
               >
                 Dashboard
               </Link>
@@ -270,6 +293,7 @@ export function Navbar() {
                 href="/dashboard/api"
                 onClick={() => setMobileOpen(false)}
                 className="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-current={isActiveRoute(pathname, "/dashboard/api") ? "page" : undefined}
               >
                 API Keys
               </Link>
@@ -279,6 +303,7 @@ export function Navbar() {
                 href="/creator"
                 onClick={() => setMobileOpen(false)}
                 className="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-current={isActiveRoute(pathname, "/creator") ? "page" : undefined}
               >
                 Creator
               </Link>
@@ -288,6 +313,7 @@ export function Navbar() {
                 href="/admin"
                 onClick={() => setMobileOpen(false)}
                 className="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-current={isActiveRoute(pathname, "/admin") ? "page" : undefined}
               >
                 Admin
               </Link>

@@ -233,6 +233,7 @@ export function MarketplacePromptDetailClient({
                   variant="secondary"
                   className="absolute left-3 top-1/2 -translate-y-1/2"
                   onClick={() => setActiveIndex((index) => (index - 1 + images.length) % images.length)}
+                  aria-label="Previous image"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -242,6 +243,7 @@ export function MarketplacePromptDetailClient({
                   variant="secondary"
                   className="absolute right-3 top-1/2 -translate-y-1/2"
                   onClick={() => setActiveIndex((index) => (index + 1) % images.length)}
+                  aria-label="Next image"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -259,6 +261,8 @@ export function MarketplacePromptDetailClient({
                     activeIndex === index ? "border-primary" : "border-border/60"
                   }`}
                   onClick={() => setActiveIndex(index)}
+                  aria-label={`View image ${index + 1}`}
+                  aria-current={activeIndex === index ? "true" : undefined}
                 >
                   <Image src={imageUrl} alt={`Example ${index + 1}`} fill className="object-cover" sizes="120px" />
                 </button>

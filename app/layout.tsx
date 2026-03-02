@@ -56,8 +56,16 @@ export default function RootLayout({
       <body className={`${sans.variable} ${display.variable} font-sans`}>
         <Providers>
           <div className="relative flex min-h-screen flex-col bg-spotlight bg-grain">
+            <a
+              href="#main-content"
+              className="sr-only fixed left-4 top-3 z-50 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow focus:not-sr-only"
+            >
+              Skip to main content
+            </a>
             <Navbar />
-            <main className="flex-1 pb-16 md:pb-0">{children}</main>
+            <main id="main-content" className="flex-1 pb-16 md:pb-0">
+              {children}
+            </main>
             <BottomNav />
             <Footer />
           </div>
