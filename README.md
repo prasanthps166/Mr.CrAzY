@@ -72,6 +72,9 @@ npm run dev
 ## Scripts
 - `npm run dev` - start dev server
 - `npm run lint` - lint checks
+- `npm run test:run` - run unit tests
+- `npm run check:guards` - verify API route auth/key guard conventions
+- `npm run verify` - run lint + tests + guard checks + build + mobile typecheck
 - `npm run build` - production build
 - `npm run smoke:phase2` - Phase 2 marketplace/admin/analytics smoke run
 - `npm run smoke:phase3` - Phase 3 billing/checkout/webhook smoke run

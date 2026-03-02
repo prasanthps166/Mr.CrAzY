@@ -31,6 +31,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Unit tests
+        run: npm run test:run
+
+      - name: Route guard checks
+        run: npm run check:guards
+
       - name: Build
         run: npm run build
 

@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest",
+    "test:run": "vitest run --reporter=verbose",
+    "check:guards": "node scripts/check-route-guards.mjs",
+    "verify": "npm run lint && npm run test:run && npm run check:guards && npm run build && npm run typecheck --prefix mobile",
     "smoke:phase2": "node scripts/phase2-smoke.mjs",
     "smoke:phase3": "node scripts/phase3-smoke.mjs"
   },
@@ -45,6 +49,7 @@
     "eslint-config-next": "^14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.18"
   }
 }
