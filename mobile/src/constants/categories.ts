@@ -1,0 +1,15 @@
+export const CATEGORIES = [
+  "All",
+  "Anime",
+  "Fantasy",
+  "Portrait",
+  "Vintage",
+  "Cartoon",
+  "Cyberpunk",
+  "Bollywood",
+  "Festival",
+  "Traditional Art",
+  "India Special",
+  "Nature",
+  "Art",
+] as const;

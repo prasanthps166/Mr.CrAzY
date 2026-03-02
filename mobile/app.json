@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "PromptGallery Mobile",
+    "slug": "promptgallery-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "promptgallerymobile",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.promptgallery.mobile"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PromptGallery accesses your gallery so you can transform your photos.",
+          "cameraPermission": "PromptGallery accesses your camera so you can capture photos to transform."
+        }
+      ],
+      "react-native-google-mobile-ads"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

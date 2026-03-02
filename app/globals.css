@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 42 36% 95%;
+  --foreground: 24 22% 16%;
+  --card: 44 31% 98%;
+  --card-foreground: 24 22% 16%;
+  --popover: 44 31% 98%;
+  --popover-foreground: 24 22% 16%;
+  --primary: 23 67% 50%;
+  --primary-foreground: 37 65% 97%;
+  --secondary: 33 42% 90%;
+  --secondary-foreground: 24 20% 22%;
+  --muted: 35 30% 89%;
+  --muted-foreground: 23 13% 39%;
+  --accent: 33 67% 86%;
+  --accent-foreground: 24 28% 24%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 31 26% 80%;
+  --input: 31 26% 80%;
+  --ring: 23 67% 50%;
+  --radius: 1rem;
+}
+
+.dark {
+  --background: 20 15% 10%;
+  --foreground: 34 45% 95%;
+  --card: 22 16% 12%;
+  --card-foreground: 34 45% 95%;
+  --popover: 22 16% 12%;
+  --popover-foreground: 34 45% 95%;
+  --primary: 24 74% 58%;
+  --primary-foreground: 24 36% 12%;
+  --secondary: 20 14% 19%;
+  --secondary-foreground: 34 40% 92%;
+  --muted: 21 13% 18%;
+  --muted-foreground: 35 18% 72%;
+  --accent: 20 31% 30%;
+  --accent-foreground: 33 52% 90%;
+  --destructive: 0 73% 42%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 24 14% 26%;
+  --input: 24 14% 26%;
+  --ring: 24 74% 58%;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  background-image:
+    radial-gradient(circle at 8% 6%, rgb(255 242 213 / 0.85), transparent 30%),
+    radial-gradient(circle at 92% 10%, rgb(255 209 164 / 0.45), transparent 34%),
+    linear-gradient(180deg, rgb(250 246 238 / 0.9), rgb(246 239 226 / 0.95));
+  min-height: 100vh;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(circle at 8% 8%, rgb(179 92 38 / 0.18), transparent 34%),
+    radial-gradient(circle at 92% 12%, rgb(95 58 33 / 0.16), transparent 36%),
+    linear-gradient(180deg, rgb(22 17 13 / 0.98), rgb(15 12 10 / 0.98));
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.25);
+  color: hsl(var(--foreground));
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .bg-spotlight {
+    background-image:
+      radial-gradient(circle at 6% 10%, rgb(255 245 224 / 0.92), transparent 34%),
+      radial-gradient(circle at 94% 8%, rgb(255 207 157 / 0.48), transparent 36%),
+      radial-gradient(circle at 50% 100%, rgb(236 215 184 / 0.4), transparent 55%),
+      linear-gradient(180deg, rgb(250 246 238 / 0.92), rgb(246 239 226 / 0.92));
+  }
+  .dark .bg-spotlight {
+    background-image:
+      radial-gradient(circle at 10% 12%, rgb(191 102 43 / 0.2), transparent 34%),
+      radial-gradient(circle at 90% 10%, rgb(104 60 35 / 0.16), transparent 38%),
+      radial-gradient(circle at 50% 100%, rgb(64 42 31 / 0.24), transparent 55%),
+      linear-gradient(180deg, rgb(22 17 13 / 0.95), rgb(15 12 10 / 0.95));
+  }
+  .bg-grain {
+    background-image:
+      radial-gradient(circle at 1px 1px, rgb(74 50 24 / 0.04) 1px, transparent 0),
+      radial-gradient(circle at 2px 2px, rgb(74 50 24 / 0.02) 1px, transparent 0);
+    background-position:
+      0 0,
+      13px 17px;
+    background-size:
+      24px 24px,
+      29px 29px;
+  }
+  .dark .bg-grain {
+    background-image:
+      radial-gradient(circle at 1px 1px, rgb(255 229 200 / 0.03) 1px, transparent 0),
+      radial-gradient(circle at 2px 2px, rgb(255 229 200 / 0.015) 1px, transparent 0);
+  }
+  .animate-fade-up {
+    animation: fade-up 420ms ease-out both;
+  }
+  .animate-fade-up-delay {
+    animation: fade-up 560ms ease-out both;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
