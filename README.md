@@ -43,6 +43,10 @@ Optional ads/payments vars:
 - `RAZORPAY_WEBHOOK_SECRET`
 - `NEXT_PUBLIC_RAZORPAY_KEY_ID`
 
+Optional distributed rate limit vars:
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+
 3. In Supabase SQL Editor, run:
 - `supabase/schema.sql`
 - `supabase/seed.sql`
@@ -108,6 +112,7 @@ API:
 - Pro users: unlimited, no watermark.
 - Guest users: one trial generation via cookie gate.
 - Rate limit on generation API: 10 requests/minute per user/IP key.
+- Uses Upstash Redis for shared rate limiting when configured, with in-memory fallback.
 - Billing switches by environment:
 - Mock mode by default (`BILLING_MODE=mock`).
 - Stripe mode only when `BILLING_MODE=stripe` and Stripe keys are set.

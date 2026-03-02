@@ -5,12 +5,19 @@ import { trackEvent } from "@/lib/analytics";
 import { consumeCredit, ensureDailyCredits } from "@/lib/credits";
 import { ensureUserProfile, getPromptById, getUserProfileById } from "@/lib/data";
 import { sendGenerationReadyEmail } from "@/lib/email";
+import { getRequestId, logError, logInfo, logWarn } from "@/lib/logging";
 import { createImg2ImgPrediction, isReplicateConfigured, pollPrediction } from "@/lib/replicate";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createServiceRoleClient, getUserFromAccessToken } from "@/lib/supabase";
 import { addWatermark } from "@/lib/watermark";
 
 export const runtime = "nodejs";
+
+function jsonWithRequestId(requestId: string, body: unknown, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set("x-request-id", requestId);
+  return response;
+}
 
 async function uploadToStorage(
   bucket: "originals" | "generated",
@@ -32,10 +39,15 @@ async function uploadToStorage(
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
   const startedAt = Date.now();
 
   if (!isReplicateConfigured()) {
-    return NextResponse.json(
+    logWarn("generate.replicate_not_configured", {
+      request_id: requestId,
+    });
+    return jsonWithRequestId(
+      requestId,
       {
         message: "Replicate API is not configured",
       },
@@ -48,9 +60,16 @@ export async function POST(request: NextRequest) {
   const authUser = await getUserFromAccessToken(token);
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const limiterKey = authUser?.id ?? `guest:${ip}`;
-  const limit = checkRateLimit(limiterKey, 10, 60_000);
+  const limit = await checkRateLimit(limiterKey, 10, 60_000);
   if (!limit.allowed) {
-    return NextResponse.json(
+    logWarn("generate.rate_limited", {
+      request_id: requestId,
+      user_id: authUser?.id ?? null,
+      backend: limit.backend,
+      reset_at: limit.resetAt,
+    });
+    return jsonWithRequestId(
+      requestId,
       {
         message: "Rate limit exceeded. Max 10 generations per minute.",
       },
@@ -58,24 +77,30 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  logInfo("generate.request_started", {
+    request_id: requestId,
+    user_id: authUser?.id ?? null,
+    backend: limit.backend,
+  });
+
   const formData = await request.formData();
   const promptId = String(formData.get("promptId") ?? "");
   const strength = Number(formData.get("strength") ?? 0.7);
   const file = formData.get("file");
 
   if (!promptId) {
-    return NextResponse.json({ message: "Prompt ID is required" }, { status: 400 });
+    return jsonWithRequestId(requestId, { message: "Prompt ID is required" }, { status: 400 });
   }
   if (!(file instanceof File)) {
-    return NextResponse.json({ message: "Image file is required" }, { status: 400 });
+    return jsonWithRequestId(requestId, { message: "Image file is required" }, { status: 400 });
   }
   if (Number.isNaN(strength) || strength < 0.4 || strength > 0.9) {
-    return NextResponse.json({ message: "Strength must be between 0.4 and 0.9" }, { status: 400 });
+    return jsonWithRequestId(requestId, { message: "Strength must be between 0.4 and 0.9" }, { status: 400 });
   }
 
   const prompt = await getPromptById(promptId);
   if (!prompt) {
-    return NextResponse.json({ message: "Prompt not found" }, { status: 404 });
+    return jsonWithRequestId(requestId, { message: "Prompt not found" }, { status: 404 });
   }
 
   await trackEvent({
@@ -89,7 +114,8 @@ export async function POST(request: NextRequest) {
 
   const guestUsed = request.cookies.get("guest_generation_used")?.value === "1";
   if (!authUser && guestUsed) {
-    return NextResponse.json(
+    return jsonWithRequestId(
+      requestId,
       {
         message: "Guest trial already used. Please sign up to continue.",
         requiresSignup: true,
@@ -105,15 +131,15 @@ export async function POST(request: NextRequest) {
     await ensureUserProfile(authUser);
     const profile = await getUserProfileById(authUser.id);
     if (!profile) {
-      return NextResponse.json({ message: "Unable to load user profile" }, { status: 500 });
+      return jsonWithRequestId(requestId, { message: "Unable to load user profile" }, { status: 500 });
     }
     if ((profile as { is_suspended?: boolean }).is_suspended) {
-      return NextResponse.json({ message: "Account is suspended" }, { status: 403 });
+      return jsonWithRequestId(requestId, { message: "Account is suspended" }, { status: 403 });
     }
 
     const refreshed = await ensureDailyCredits(profile);
     if (!refreshed.is_pro && refreshed.credits <= 0) {
-      return NextResponse.json({ message: "No credits left for today" }, { status: 402 });
+      return jsonWithRequestId(requestId, { message: "No credits left for today" }, { status: 402 });
     }
 
     userForCreditDeduction = refreshed;
@@ -202,6 +228,7 @@ export async function POST(request: NextRequest) {
       remainingCredits,
       isPro,
     });
+    response.headers.set("x-request-id", requestId);
 
     if (authUser?.email && Date.now() - startedAt > 30_000) {
       void sendGenerationReadyEmail(authUser.email, prompt.title, generatedImageUrl);
@@ -215,11 +242,27 @@ export async function POST(request: NextRequest) {
         maxAge: 60 * 60 * 24 * 30,
       });
     }
+
+    logInfo("generate.request_completed", {
+      request_id: requestId,
+      user_id: authUser?.id ?? null,
+      generation_id: generationId,
+      duration_ms: Date.now() - startedAt,
+      backend: limit.backend,
+    });
+
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Generation failed";
+    logError("generate.request_failed", error, {
+      request_id: requestId,
+      user_id: authUser?.id ?? null,
+      duration_ms: Date.now() - startedAt,
+      backend: limit.backend,
+    });
     if (message.includes("status 402 Payment Required")) {
-      return NextResponse.json(
+      return jsonWithRequestId(
+        requestId,
         {
           message:
             "Replicate account has insufficient credits. Add billing credit in Replicate and try again.",
@@ -228,7 +271,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
+    return jsonWithRequestId(
+      requestId,
       {
         message,
       },

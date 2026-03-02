@@ -9,6 +9,7 @@ import {
   syncStripeSubscriptionForUser,
 } from "@/lib/billing-service";
 import { BillingPlanId, isBillingPlanId } from "@/lib/billing";
+import { getRequestId, logError, logInfo, logWarn } from "@/lib/logging";
 import { createServiceRoleClient } from "@/lib/supabase";
 import { isStripeWebhookConfigured, stripe, stripeWebhookSecret } from "@/lib/stripe";
 
@@ -167,9 +168,22 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   }
 }
 
+function jsonWithRequestId(requestId: string, body: unknown, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set("x-request-id", requestId);
+  return response;
+}
+
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const startedAt = Date.now();
+
   if (!isStripeWebhookConfigured() || !stripe || !stripeWebhookSecret) {
-    return NextResponse.json(
+    logInfo("stripe.webhook.mock_mode", {
+      request_id: requestId,
+    });
+    return jsonWithRequestId(
+      requestId,
       {
         ok: true,
         mock: true,
@@ -181,7 +195,10 @@ export async function POST(request: NextRequest) {
 
   const signature = request.headers.get("stripe-signature");
   if (!signature) {
-    return NextResponse.json({ message: "Missing stripe-signature header" }, { status: 400 });
+    logWarn("stripe.webhook.missing_signature", {
+      request_id: requestId,
+    });
+    return jsonWithRequestId(requestId, { message: "Missing stripe-signature header" }, { status: 400 });
   }
 
   const payload = await request.text();
@@ -190,8 +207,18 @@ export async function POST(request: NextRequest) {
     event = stripe.webhooks.constructEvent(payload, signature, stripeWebhookSecret);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid webhook signature";
-    return NextResponse.json({ message }, { status: 400 });
+    logWarn("stripe.webhook.invalid_signature", {
+      request_id: requestId,
+      message,
+    });
+    return jsonWithRequestId(requestId, { message }, { status: 400 });
   }
+
+  logInfo("stripe.webhook.received", {
+    request_id: requestId,
+    event_id: event.id,
+    event_type: event.type,
+  });
 
   try {
     if (event.type === "checkout.session.completed") {
@@ -205,8 +232,21 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Webhook handling failed";
-    return NextResponse.json({ message }, { status: 500 });
+    logError("stripe.webhook.handler_failed", error, {
+      request_id: requestId,
+      event_id: event.id,
+      event_type: event.type,
+      duration_ms: Date.now() - startedAt,
+    });
+    return jsonWithRequestId(requestId, { message }, { status: 500 });
   }
 
-  return NextResponse.json({ received: true, eventType: event.type }, { status: 200 });
+  logInfo("stripe.webhook.processed", {
+    request_id: requestId,
+    event_id: event.id,
+    event_type: event.type,
+    duration_ms: Date.now() - startedAt,
+  });
+
+  return jsonWithRequestId(requestId, { received: true, eventType: event.type }, { status: 200 });
 }
