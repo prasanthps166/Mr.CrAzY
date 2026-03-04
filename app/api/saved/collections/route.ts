@@ -106,6 +106,79 @@ export async function POST(request: NextRequest) {
   });
 }
 
+export async function PATCH(request: NextRequest) {
+  const authUser = await getAuthUserFromRequest(request);
+  if (!authUser) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  await ensureUserProfile(authUser);
+
+  const body = (await request.json().catch(() => ({}))) as {
+    collectionId?: string;
+    name?: string;
+  };
+
+  const collectionId = body.collectionId?.trim();
+  const name = normalizeCollectionName(body.name ?? "");
+
+  if (!collectionId) {
+    return NextResponse.json({ message: "collectionId is required" }, { status: 400 });
+  }
+  if (!name) {
+    return NextResponse.json({ message: "name is required" }, { status: 400 });
+  }
+  if (name.length > 60) {
+    return NextResponse.json({ message: "Collection name must be 60 characters or fewer" }, { status: 400 });
+  }
+
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
+    return NextResponse.json({ message: "Supabase service role key is missing" }, { status: 500 });
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("prompt_collections")
+    .select("id")
+    .eq("id", collectionId)
+    .eq("user_id", authUser.id)
+    .maybeSingle();
+
+  if (existingError) {
+    return NextResponse.json({ message: existingError.message }, { status: 500 });
+  }
+  if (!existing) {
+    return NextResponse.json({ message: "Collection not found" }, { status: 404 });
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("prompt_collections")
+    .update({ name })
+    .eq("id", collectionId)
+    .eq("user_id", authUser.id)
+    .select("id, name, is_default, created_at")
+    .single();
+
+  if (updateError) {
+    if (updateError.code === "23505") {
+      return NextResponse.json({ message: "A collection with this name already exists" }, { status: 409 });
+    }
+    return NextResponse.json({ message: updateError.message }, { status: 500 });
+  }
+
+  const counts = await getUserCollectionCounts(supabase, [collectionId]);
+
+  return NextResponse.json({
+    collection: {
+      id: updated.id,
+      name: updated.name,
+      is_default: updated.is_default,
+      created_at: updated.created_at,
+      prompt_count: counts.get(collectionId) ?? 0,
+    },
+  });
+}
+
 export async function DELETE(request: NextRequest) {
   const authUser = await getAuthUserFromRequest(request);
   if (!authUser) {

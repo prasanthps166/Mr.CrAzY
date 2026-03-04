@@ -137,6 +137,7 @@ export async function getCommunityFeed(
     limit?: number;
     category?: string;
     sort?: "recent" | "top_week";
+    scope?: "all" | "following";
   } = {},
 ) {
   const params = new URLSearchParams();
@@ -144,6 +145,7 @@ export async function getCommunityFeed(
   if (typeof options.limit === "number") params.set("limit", String(options.limit));
   if (options.category) params.set("category", options.category);
   if (options.sort) params.set("sort", options.sort);
+  if (options.scope && options.scope !== "all") params.set("scope", options.scope);
   const query = params.toString();
 
   return apiFetch<{

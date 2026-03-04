@@ -22,6 +22,8 @@ export default function SavedPromptsPage() {
   const [items, setItems] = useState<SavedPromptItem[]>([]);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [creatingCollection, setCreatingCollection] = useState(false);
+  const [collectionNameDraft, setCollectionNameDraft] = useState("");
+  const [renamingCollection, setRenamingCollection] = useState(false);
   const [deletingCollectionId, setDeletingCollectionId] = useState<string | null>(null);
   const [removingPromptId, setRemovingPromptId] = useState<string | null>(null);
 
@@ -84,6 +86,11 @@ export default function SavedPromptsPage() {
     setItems((payload.items as SavedPromptItem[]) ?? []);
   }, []);
 
+  const selectedCollection = useMemo(
+    () => collections.find((collection) => collection.id === selectedCollectionId) ?? null,
+    [collections, selectedCollectionId],
+  );
+
   useEffect(() => {
     async function bootstrap() {
       if (!supabase) {
@@ -115,6 +122,10 @@ export default function SavedPromptsPage() {
 
     void bootstrap();
   }, [loadCollections, loadItems, supabase]);
+
+  useEffect(() => {
+    setCollectionNameDraft(selectedCollection?.name ?? "");
+  }, [selectedCollection?.id, selectedCollection?.name]);
 
   async function createCollection() {
     const name = newCollectionName.trim();
@@ -173,6 +184,37 @@ export default function SavedPromptsPage() {
     const selectedId = await loadCollections(token, true);
     await loadItems(token, selectedId);
     toast.success("Collection deleted");
+  }
+
+  async function renameSelectedCollection() {
+    if (!token || !selectedCollection) return;
+
+    const name = collectionNameDraft.trim();
+    if (!name || name === selectedCollection.name) return;
+
+    setRenamingCollection(true);
+    const response = await fetch("/api/saved/collections", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        collectionId: selectedCollection.id,
+        name,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    setRenamingCollection(false);
+
+    if (!response.ok) {
+      toast.error(payload.message || "Could not rename collection");
+      return;
+    }
+
+    const selectedId = await loadCollections(token);
+    await loadItems(token, selectedId);
+    toast.success("Collection renamed");
   }
 
   async function removeFromCollection(promptId: string) {
@@ -301,6 +343,33 @@ export default function SavedPromptsPage() {
           );
         })}
       </div>
+
+      {selectedCollection ? (
+        <Card className="mb-6 border-border/60 bg-card/70">
+          <CardHeader>
+            <CardTitle className="font-display text-lg">Rename Collection</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <Input
+              value={collectionNameDraft}
+              onChange={(event) => setCollectionNameDraft(event.target.value)}
+              maxLength={60}
+              placeholder="Collection name"
+            />
+            <Button
+              onClick={() => void renameSelectedCollection()}
+              disabled={
+                renamingCollection ||
+                !collectionNameDraft.trim() ||
+                collectionNameDraft.trim() === selectedCollection.name
+              }
+            >
+              {renamingCollection ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save Name
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {!selectedCollectionId ? (
         <Card className="border-border/60 bg-card/70">

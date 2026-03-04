@@ -67,6 +67,7 @@ export default function CommunityScreen() {
   const { getAccessToken } = useAuth();
   const { colors } = useTheme();
 
+  const [feedScope, setFeedScope] = useState<"all" | "following">("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [offset, setOffset] = useState(0);
@@ -84,13 +85,14 @@ export default function CommunityScreen() {
         offset: nextOffset,
         limit: 20,
         category: selectedCategory,
+        scope: feedScope,
       });
 
       setPosts((current) => (replace ? payload.posts : [...current, ...payload.posts]));
       setOffset(payload.nextOffset);
       setHasMore(payload.hasMore);
     },
-    [getAccessToken, selectedCategory],
+    [feedScope, getAccessToken, selectedCategory],
   );
 
   useEffect(() => {
@@ -175,6 +177,14 @@ export default function CommunityScreen() {
       <View style={styles.headerWrap}>
         <Text style={[styles.title, { color: colors.text }]}>Community</Text>
         <AdMobBanner position="top" />
+        <View style={styles.scopeRow}>
+          <CategoryPill label="Everyone" selected={feedScope === "all"} onPress={() => setFeedScope("all")} />
+          <CategoryPill
+            label="Following"
+            selected={feedScope === "following"}
+            onPress={() => setFeedScope("following")}
+          />
+        </View>
         <FlatList
           horizontal
           data={CATEGORIES}
@@ -186,7 +196,7 @@ export default function CommunityScreen() {
         />
       </View>
     ),
-    [colors.text, selectedCategory],
+    [colors.text, feedScope, selectedCategory],
   );
 
   if (loading) {
@@ -218,7 +228,11 @@ export default function CommunityScreen() {
         }
         ListEmptyComponent={
           <View style={[styles.empty, { borderColor: colors.border, backgroundColor: colors.card }]}>
-            <Text style={{ color: colors.muted }}>No community posts found.</Text>
+            <Text style={{ color: colors.muted }}>
+              {feedScope === "following"
+                ? "No posts from creators you follow yet."
+                : "No community posts found."}
+            </Text>
           </View>
         }
         renderItem={({ item }) => (
@@ -259,6 +273,10 @@ const styles = StyleSheet.create({
     paddingTop: 54,
     paddingBottom: 10,
     gap: 12,
+  },
+  scopeRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   title: {
     fontSize: 28,

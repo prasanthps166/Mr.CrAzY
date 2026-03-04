@@ -25,8 +25,33 @@ export async function GET(request: NextRequest) {
   const offset = parseInteger(params.get("offset"), 0, 0, 5000);
   const category = params.get("category") ?? "All";
   const sort = params.get("sort") === "top_week" ? "top_week" : "recent";
+  const scope = params.get("scope") === "following" ? "following" : "all";
 
   let query = supabase.from("community_posts").select("*");
+
+  if (scope === "following") {
+    const { data: followRows, error: followError } = await supabase
+      .from("user_follows")
+      .select("following_id")
+      .eq("follower_id", authUser.id);
+
+    if (followError) {
+      return NextResponse.json({ message: followError.message }, { status: 500 });
+    }
+
+    const followingUserIds = Array.from(
+      new Set((followRows ?? []).map((row) => row.following_id).filter(Boolean)),
+    );
+    if (!followingUserIds.length) {
+      return NextResponse.json({
+        posts: [],
+        hasMore: false,
+        nextOffset: offset,
+      });
+    }
+
+    query = query.in("user_id", followingUserIds);
+  }
 
   if (sort === "top_week") {
     const lowerBound = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();

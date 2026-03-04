@@ -369,6 +369,8 @@ type GetCommunityFeedOptions = {
   category?: string;
   limit?: number;
   mostLikedThisWeek?: boolean;
+  scope?: "all" | "following";
+  viewerUserId?: string | null;
 };
 
 async function getCommunityFeedUncached(options?: GetCommunityFeedOptions) {
@@ -380,6 +382,27 @@ async function getCommunityFeedUncached(options?: GetCommunityFeedOptions) {
   if (!supabase) return getFallbackCommunityFeed(options?.limit ?? 20);
 
   let postsQuery = supabase.from("community_posts").select("*");
+  const scope = options?.scope ?? "all";
+  const viewerUserId = options?.viewerUserId ?? null;
+
+  if (scope === "following") {
+    if (!viewerUserId) return [];
+
+    const followsResult = await withTimeout(
+      supabase
+        .from("user_follows")
+        .select("following_id")
+        .eq("follower_id", viewerUserId),
+    );
+    const followRows = followsResult?.data;
+    const followingUserIds = Array.from(
+      new Set((followRows ?? []).map((row) => row.following_id).filter(Boolean)),
+    );
+    if (!followingUserIds.length) return [];
+
+    postsQuery = postsQuery.in("user_id", followingUserIds);
+  }
+
   const lowerBound = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
   if (options?.mostLikedThisWeek) {
     postsQuery = postsQuery.gte("created_at", lowerBound).order("likes", { ascending: false });
@@ -457,12 +480,29 @@ const getCommunityFeedCached = unstable_cache(
       limit,
       mostLikedThisWeek,
     }),
-  ["community-feed-v1"],
+  ["community-feed-v2"],
   { revalidate: PUBLIC_DATA_REVALIDATE_SECONDS },
 );
 
 export async function getCommunityFeed(options?: GetCommunityFeedOptions) {
-  const { category = "All", limit = 20, mostLikedThisWeek = false } = options ?? {};
+  const {
+    category = "All",
+    limit = 20,
+    mostLikedThisWeek = false,
+    scope = "all",
+    viewerUserId = null,
+  } = options ?? {};
+
+  if (scope === "following") {
+    return getCommunityFeedUncached({
+      category,
+      limit,
+      mostLikedThisWeek,
+      scope,
+      viewerUserId,
+    });
+  }
+
   return getCommunityFeedCached(category, limit, mostLikedThisWeek);
 }
 
