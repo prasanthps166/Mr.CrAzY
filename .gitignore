@@ -23,6 +23,8 @@
 .DS_Store
 *.pem
 /supabase/.temp/
+/gallery.html
+/gallery-after.html
 
 # debug
 npm-debug.log*
