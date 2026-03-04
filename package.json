@@ -15,7 +15,8 @@
     "check:guards": "node scripts/check-route-guards.mjs",
     "verify": "npm run lint && npm run test:run && npm run check:guards && npm run build && npm run typecheck --prefix mobile",
     "smoke:phase2": "node scripts/phase2-smoke.mjs",
-    "smoke:phase3": "node scripts/phase3-smoke.mjs"
+    "smoke:phase3": "node scripts/phase3-smoke.mjs",
+    "smoke:phase4": "node scripts/phase4-smoke.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

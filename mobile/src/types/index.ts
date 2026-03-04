@@ -26,6 +26,25 @@ export type CommunityPost = {
   user_avatar_url: string | null;
 };
 
+export type CommunityComment = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  comment_text: string;
+  created_at: string;
+  username: string;
+  user_avatar_url: string | null;
+  is_owner: boolean;
+};
+
+export type PromptCollection = {
+  id: string;
+  name: string;
+  is_default: boolean;
+  created_at: string;
+  prompt_count: number;
+};
+
 export type MarketplacePrompt = {
   id: string;
   creator_id: string;

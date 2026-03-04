@@ -88,6 +88,7 @@ npm run dev
 - `npm run build` - production build
 - `npm run smoke:phase2` - Phase 2 marketplace/admin/analytics smoke run
 - `npm run smoke:phase3` - Phase 3 billing/checkout/webhook smoke run
+- `npm run smoke:phase4` - Phase 4 social/saved/following smoke run
 
 Before first Playwright run on a new machine:
 ```bash
@@ -100,6 +101,7 @@ npx playwright install chromium
 - `/gallery/[id]` prompt details + community examples
 - `/generate` generation page
 - `/dashboard` user history + credits
+- `/dashboard/saved` saved prompts + collections
 - `/community` public feed
 - `/pricing` plans and checkout
 - `/login` / `/signup` auth
@@ -109,11 +111,16 @@ API:
 - `GET /api/credits`
 - `POST /api/community/share`
 - `POST /api/community/like`
+- `GET/POST /api/community/comments`
+- `DELETE /api/community/comments/[id]`
+- `GET/POST/DELETE /api/community/follow`
 - `POST /api/credits/watch-ad`
 - `POST /api/credits/share`
 - `POST /api/referral/complete`
 - `POST /api/razorpay/create-order`
 - `POST /api/razorpay/verify`
+- `GET/POST/PATCH/DELETE /api/saved/collections`
+- `GET/POST/DELETE /api/saved/prompts`
 - `POST /api/v1/transform`
 - `GET /api/v1/generation/[id]`
 - `GET /api/v1/prompts`
@@ -124,6 +131,7 @@ API:
 - Guest users: one trial generation via cookie gate.
 - Rate limit on generation API: 10 requests/minute per user/IP key.
 - Uses Upstash Redis for shared rate limiting when configured, with in-memory fallback.
+- Community feed supports both global and following-only scopes (`scope=following`).
 - Billing switches by environment:
 - Mock mode by default (`BILLING_MODE=mock`).
 - Stripe mode only when `BILLING_MODE=stripe` and Stripe keys are set.
@@ -196,6 +204,6 @@ npm run android
 - Home
 - Prompt Detail
 - Generate (camera/gallery + lottie + result actions)
-- Community (infinite grid + like animation + full-screen post)
+- Community (infinite grid + follow scope + full-screen post + comments/follow actions)
 - Marketplace (Stripe RN card flow + purchases)
 - Profile (credits, history, upgrade CTA, notification/theme/logout settings)

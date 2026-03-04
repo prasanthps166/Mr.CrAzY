@@ -1,9 +1,17 @@
-import { CommunityPost, GenerationHistoryItem, MarketplacePrompt, Profile, Prompt } from "@/src/types";
+import {
+  CommunityComment,
+  CommunityPost,
+  GenerationHistoryItem,
+  MarketplacePrompt,
+  Profile,
+  Prompt,
+  PromptCollection,
+} from "@/src/types";
 
 const baseApiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "");
 
 type ApiRequestOptions = {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   token?: string | null;
   body?: unknown;
   headers?: Record<string, string>;
@@ -157,6 +165,86 @@ export async function getCommunityFeed(
 
 export async function getCommunityPost(token: string, postId: string) {
   return apiFetch<{ post: CommunityPost }>(`/api/community/post/${postId}`, { token });
+}
+
+export async function getCommunityComments(token: string, postId: string, limit = 60) {
+  return apiFetch<{ comments: CommunityComment[] }>(
+    `/api/community/comments?postId=${encodeURIComponent(postId)}&limit=${limit}`,
+    { token },
+  );
+}
+
+export async function addCommunityComment(token: string, postId: string, commentText: string) {
+  return apiFetch<{ comment: CommunityComment }>("/api/community/comments", {
+    method: "POST",
+    token,
+    body: {
+      postId,
+      commentText,
+    },
+  });
+}
+
+export async function deleteCommunityComment(token: string, commentId: string) {
+  return apiFetch<{ ok: boolean }>(`/api/community/comments/${encodeURIComponent(commentId)}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export async function getFollowingUserIds(token: string) {
+  return apiFetch<{ followingUserIds: string[] }>("/api/community/follow", {
+    token,
+  });
+}
+
+export async function followUser(token: string, targetUserId: string) {
+  return apiFetch<{ ok: boolean; following: boolean; targetUserId: string }>("/api/community/follow", {
+    method: "POST",
+    token,
+    body: { targetUserId },
+  });
+}
+
+export async function unfollowUser(token: string, targetUserId: string) {
+  return apiFetch<{ ok: boolean; following: boolean; targetUserId: string }>("/api/community/follow", {
+    method: "DELETE",
+    token,
+    body: { targetUserId },
+  });
+}
+
+export async function getSavedPromptStatus(token: string, promptId: string) {
+  return apiFetch<{ promptId: string; isSaved: boolean; savedCollectionIds: string[] }>(
+    `/api/saved/prompts?promptId=${encodeURIComponent(promptId)}`,
+    { token },
+  );
+}
+
+export async function savePrompt(token: string, promptId: string, collectionId?: string | null) {
+  return apiFetch<{ ok: boolean; collectionId: string }>("/api/saved/prompts", {
+    method: "POST",
+    token,
+    body: {
+      promptId,
+      ...(collectionId ? { collectionId } : {}),
+    },
+  });
+}
+
+export async function unsavePrompt(token: string, promptId: string, collectionId?: string | null) {
+  return apiFetch<{ ok: boolean }>("/api/saved/prompts", {
+    method: "DELETE",
+    token,
+    body: {
+      promptId,
+      ...(collectionId ? { collectionId } : {}),
+    },
+  });
+}
+
+export async function getSavedCollections(token: string) {
+  return apiFetch<{ collections: PromptCollection[] }>("/api/saved/collections", { token });
 }
 
 export async function getMyCommunityPosts(token: string, limit = 120) {

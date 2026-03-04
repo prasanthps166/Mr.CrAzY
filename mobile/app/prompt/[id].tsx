@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   Image,
   Pressable,
@@ -11,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-import { getPrompt, getPromptCommunity } from "@/src/lib/api";
+import { getPrompt, getPromptCommunity, getSavedPromptStatus, savePrompt, unsavePrompt } from "@/src/lib/api";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { useTheme } from "@/src/providers/ThemeProvider";
 import { CommunityPost, Prompt } from "@/src/types";
@@ -25,6 +26,8 @@ export default function PromptDetailScreen() {
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [community, setCommunity] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [savedCollectionIds, setSavedCollectionIds] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -33,13 +36,15 @@ export default function PromptDetailScreen() {
       if (!token || !id) return;
 
       try {
-        const [promptPayload, communityPayload] = await Promise.all([
+        const [promptPayload, communityPayload, savedStatusPayload] = await Promise.all([
           getPrompt(token, id),
           getPromptCommunity(token, id, 12),
+          getSavedPromptStatus(token, id),
         ]);
         if (!active) return;
         setPrompt(promptPayload.prompt);
         setCommunity(communityPayload.results);
+        setSavedCollectionIds(savedStatusPayload.savedCollectionIds ?? []);
       } finally {
         if (active) setLoading(false);
       }
@@ -50,6 +55,31 @@ export default function PromptDetailScreen() {
       active = false;
     };
   }, [getAccessToken, id]);
+
+  async function toggleSavedPrompt() {
+    const token = await getAccessToken();
+    if (!token || !id) {
+      Alert.alert("Login required", "Sign in to save prompts.");
+      return;
+    }
+
+    setSaveLoading(true);
+    try {
+      if (savedCollectionIds.length > 0) {
+        await unsavePrompt(token, id);
+      } else {
+        await savePrompt(token, id);
+      }
+
+      const status = await getSavedPromptStatus(token, id);
+      setSavedCollectionIds(status.savedCollectionIds ?? []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not update saved state";
+      Alert.alert("Save failed", message);
+    } finally {
+      setSaveLoading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -111,12 +141,23 @@ export default function PromptDetailScreen() {
       </View>
 
       <View style={[styles.ctaWrap, { backgroundColor: `${colors.background}EE`, borderTopColor: colors.border }]}>
-        <Pressable
-          onPress={() => router.push({ pathname: "/(tabs)/generate", params: { promptId: prompt.id } })}
-          style={[styles.ctaButton, { backgroundColor: colors.primary }]}
-        >
-          <Text style={styles.ctaText}>Transform My Photo</Text>
-        </Pressable>
+        <View style={styles.ctaRow}>
+          <Pressable
+            onPress={() => void toggleSavedPrompt()}
+            style={[styles.secondaryCtaButton, { borderColor: colors.border, backgroundColor: colors.card }]}
+            disabled={saveLoading}
+          >
+            <Text style={[styles.secondaryCtaText, { color: colors.text }]}>
+              {saveLoading ? "Saving..." : savedCollectionIds.length ? "Saved" : "Save Prompt"}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push({ pathname: "/(tabs)/generate", params: { promptId: prompt.id } })}
+            style={[styles.ctaButton, { backgroundColor: colors.primary }]}
+          >
+            <Text style={styles.ctaText}>Transform My Photo</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -218,7 +259,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  ctaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  secondaryCtaButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  secondaryCtaText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
   ctaButton: {
+    flex: 1,
     borderRadius: 14,
     alignItems: "center",
     paddingVertical: 14,
