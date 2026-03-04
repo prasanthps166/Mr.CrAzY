@@ -45,6 +45,11 @@ function logResult(name, ok, details = "") {
   console.log(`[${mark}] ${name}${details ? ` :: ${details}` : ""}`);
 }
 
+async function checkTableIsReadable(adminClient, tableName) {
+  const { error } = await adminClient.from(tableName).select("*").limit(1);
+  return error?.message ?? null;
+}
+
 async function requestJson(url, options = {}, timeoutMs = 45000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -241,9 +246,13 @@ async function main() {
   try {
     // Ensure expected tables exist.
     for (const table of ["prompt_collections", "prompt_collection_items", "community_comments", "user_follows"]) {
-      const { error } = await adminClient.from(table).select("*", { count: "exact", head: true });
-      logResult(`DB table exists: ${table}`, !error, error?.message || "ok");
-      if (error) throw new Error(`Missing required table: ${table}`);
+      const errorMessage = await checkTableIsReadable(adminClient, table);
+      logResult(`DB table exists: ${table}`, !errorMessage, errorMessage || "ok");
+      if (errorMessage) {
+        throw new Error(
+          `Missing required table in Supabase REST schema cache: ${table}. Run migration supabase/migrations/202603040001_collections_comments_follows.sql in your Supabase SQL editor, then run: NOTIFY pgrst, 'reload schema'.`,
+        );
+      }
     }
 
     const actor = await createAndLoginUser({
