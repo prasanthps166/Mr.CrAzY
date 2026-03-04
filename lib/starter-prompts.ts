@@ -1,4 +1,5 @@
 import { Prompt } from "@/types";
+import { INSTAGRAM_TRENDING_PROMPTS } from "@/lib/instagram-trending-prompts";
 
 export const STARTER_PROMPTS: Prompt[] = [
   {
@@ -449,4 +450,5 @@ export const STARTER_PROMPTS: Prompt[] = [
     use_count: 214,
     created_at: "2026-01-22T00:00:00.000Z",
   },
+  ...INSTAGRAM_TRENDING_PROMPTS,
 ];

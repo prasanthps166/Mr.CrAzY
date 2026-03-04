@@ -64,6 +64,9 @@ re-run the migration files in order:
 - `supabase/migrations/202602200006_generation_dual_urls.sql`
 - `supabase/migrations/202602200007_auth_user_trigger_hardening.sql`
 - `supabase/migrations/202602210001_last_year_trending_prompts.sql`
+- `supabase/migrations/202603030001_instagram_trending_prompts.sql`
+- `supabase/migrations/202603030002_prompt_dedupe_guards.sql`
+- `supabase/migrations/202603040001_collections_comments_follows.sql`
 
 4. Run the app:
 ```bash

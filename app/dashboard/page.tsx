@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Loader2, Sparkles } from "lucide-react";
+import { Bookmark, Loader2, Sparkles } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
@@ -178,6 +178,14 @@ export default function DashboardPage() {
         <div>
           <h1 className="font-display text-4xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">Track your generations and credits.</p>
+          <div className="mt-3">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/saved" className="gap-1.5">
+                <Bookmark className="h-4 w-4" />
+                Saved Prompts
+              </Link>
+            </Button>
+          </div>
         </div>
         <Card className="border-border/60 bg-card/70">
           <CardContent className="flex items-center gap-3 p-4">

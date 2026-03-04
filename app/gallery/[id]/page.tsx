@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { TrackEvent } from "@/components/analytics/TrackEvent";
 import { CommunityGrid } from "@/components/CommunityGrid";
 import { CopyButton } from "@/components/CopyButton";
+import { SavePromptButton } from "@/components/SavePromptButton";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,10 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
             <pre className="whitespace-pre-wrap text-sm text-foreground/90">{prompt.prompt_text}</pre>
           </div>
 
-          <GenerateModal prompt={prompt} triggerLabel="Use This Prompt" />
+          <div className="flex flex-wrap gap-2">
+            <GenerateModal prompt={prompt} triggerLabel="Use This Prompt" />
+            <SavePromptButton promptId={prompt.id} />
+          </div>
         </div>
       </div>
 

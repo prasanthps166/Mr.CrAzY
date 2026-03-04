@@ -174,6 +174,19 @@ export function Navbar() {
             ) : null}
             {user ? (
               <Link
+                href="/dashboard/saved"
+                className={`text-sm transition-colors ${
+                  isActiveRoute(pathname, "/dashboard/saved")
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                aria-current={isActiveRoute(pathname, "/dashboard/saved") ? "page" : undefined}
+              >
+                Saved
+              </Link>
+            ) : null}
+            {user ? (
+              <Link
                 href="/dashboard/api"
                 className={`text-sm transition-colors ${
                   isActiveRoute(pathname, "/dashboard/api")
@@ -286,6 +299,16 @@ export function Navbar() {
                 aria-current={isActiveRoute(pathname, "/dashboard") ? "page" : undefined}
               >
                 Dashboard
+              </Link>
+            )}
+            {user && (
+              <Link
+                href="/dashboard/saved"
+                onClick={() => setMobileOpen(false)}
+                className="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-current={isActiveRoute(pathname, "/dashboard/saved") ? "page" : undefined}
+              >
+                Saved
               </Link>
             )}
             {user && (

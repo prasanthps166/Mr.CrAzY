@@ -29,9 +29,12 @@ function getFallbackCommunityFeed(limit = 20) {
     id: `sample-${index + 1}`,
     likes: 10 + index * 3,
     created_at: new Date(Date.now() - index * 3600 * 1000).toISOString(),
+    generation_id: `sample-generation-${index + 1}`,
+    prompt_id: prompt.id,
     prompt_title: prompt.title,
     prompt_category: prompt.category,
     generated_image_url: prompt.example_image_url,
+    user_id: `sample-user-${index + 1}`,
     username: `Artist${index + 1}`,
     user_avatar_url: null,
   })) as CommunityPostView[];
@@ -62,9 +65,141 @@ type GetPromptsOptions = {
   limit?: number;
 };
 
+const TITLE_STOPWORDS = new Set([
+  "style",
+  "edition",
+  "portrait",
+  "look",
+  "scene",
+  "frame",
+  "pack",
+  "pro",
+  "new",
+  "viral",
+  "trending",
+]);
+
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeImageKey(value: string | null | undefined) {
+  if (!value) return "";
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return "";
+
+  try {
+    const parsed = new URL(trimmed);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return trimmed.split("?")[0]?.split("#")[0] ?? "";
+  }
+}
+
+function getPromptThemeKey(prompt: Prompt) {
+  const source = normalizeText(`${prompt.title} ${prompt.tags.join(" ")} ${prompt.category}`);
+  const rules: Array<[RegExp, string]> = [
+    [/\banime\b|\bghibli\b/, "anime"],
+    [/\baction figure\b/, "action-figure"],
+    [/\bbarbie box\b|\bdoll box\b/, "barbie-box"],
+    [/\bnano\b|\bfigurine\b|\bdiorama\b|\bblind box\b/, "mini-figurine"],
+    [/\blinkedin\b|\bheadshot\b|\bpassport\b/, "headshot"],
+    [/\bbollywood\b|\bsaree\b/, "bollywood"],
+    [/\bhaldi\b|\bmehendi\b|\bdiwali\b|\bholi\b|\bnavratri\b|\bgarba\b|\bfestival\b/, "festival"],
+    [/\bneon\b|\bcyberpunk\b/, "neon"],
+  ];
+
+  for (const [pattern, key] of rules) {
+    if (pattern.test(source)) return key;
+  }
+
+  const titleTokens = normalizeText(prompt.title)
+    .split(" ")
+    .filter((token) => token.length > 2 && !TITLE_STOPWORDS.has(token))
+    .slice(0, 2);
+  const fallbackToken = titleTokens.join("-") || "misc";
+  return `${normalizeText(prompt.category) || "category"}:${fallbackToken}`;
+}
+
+function dedupeAndDiversifyPrompts(
+  prompts: Prompt[],
+  options: {
+    maxPerTheme: number;
+    maxPerCategory?: number;
+    requireUniqueImages?: boolean;
+    requireUniquePromptText?: boolean;
+  },
+) {
+  const seenTitles = new Set<string>();
+  const seenImages = new Set<string>();
+  const seenPromptText = new Set<string>();
+  const themeCounts = new Map<string, number>();
+  const categoryCounts = new Map<string, number>();
+  const result: Prompt[] = [];
+
+  for (const prompt of prompts) {
+    const normalizedTitle = normalizeText(prompt.title);
+    if (seenTitles.has(normalizedTitle)) continue;
+
+    if (options.requireUniquePromptText) {
+      const normalizedPromptText = normalizeText(prompt.prompt_text);
+      if (normalizedPromptText && seenPromptText.has(normalizedPromptText)) continue;
+    }
+
+    if (options.requireUniqueImages) {
+      const normalizedImage = normalizeImageKey(prompt.example_image_url);
+      if (normalizedImage && seenImages.has(normalizedImage)) continue;
+    }
+
+    const themeKey = getPromptThemeKey(prompt);
+    const used = themeCounts.get(themeKey) ?? 0;
+    if (used >= options.maxPerTheme) continue;
+
+    if (options.maxPerCategory) {
+      const categoryKey = normalizeText(prompt.category || "other");
+      const categoryUsed = categoryCounts.get(categoryKey) ?? 0;
+      if (categoryUsed >= options.maxPerCategory) continue;
+      categoryCounts.set(categoryKey, categoryUsed + 1);
+    }
+
+    seenTitles.add(normalizedTitle);
+    if (options.requireUniquePromptText) {
+      const normalizedPromptText = normalizeText(prompt.prompt_text);
+      if (normalizedPromptText) seenPromptText.add(normalizedPromptText);
+    }
+    if (options.requireUniqueImages) {
+      const normalizedImage = normalizeImageKey(prompt.example_image_url);
+      if (normalizedImage) seenImages.add(normalizedImage);
+    }
+    themeCounts.set(themeKey, used + 1);
+    result.push(prompt);
+  }
+
+  return result;
+}
+
+function applyPromptFilters(prompts: Prompt[], category: string, featuredOnly: boolean, normalizedSearch: string) {
+  let result = [...prompts];
+  if (category !== "All") result = result.filter((prompt) => prompt.category === category);
+  if (featuredOnly) result = result.filter((prompt) => prompt.is_featured);
+  if (normalizedSearch) {
+    result = result.filter((prompt) =>
+      `${prompt.title} ${prompt.description} ${prompt.category} ${prompt.tags.join(" ")}`
+        .toLowerCase()
+        .includes(normalizedSearch),
+    );
+  }
+  return result;
+}
+
 async function getPromptsUncached(options?: GetPromptsOptions) {
   const { category = "All", search = "", sort = "trending", featuredOnly = false, limit } = options ?? {};
   const normalizedSearch = search.trim().toLowerCase();
+  const fallbackPrompts = applyPromptFilters(STARTER_PROMPTS, category, featuredOnly, normalizedSearch);
 
   if (isSupabaseServiceConfigured()) {
     const supabase = createServiceRoleClient();
@@ -86,21 +221,29 @@ async function getPromptsUncached(options?: GetPromptsOptions) {
       if (limit) query = query.limit(limit);
 
       const result = await withTimeout(query);
-      if (result?.data) return result.data as Prompt[];
+      if (result?.data) {
+        const mergedById = new Map<string, Prompt>();
+        for (const prompt of fallbackPrompts) mergedById.set(prompt.id, prompt);
+        for (const prompt of result.data as Prompt[]) mergedById.set(prompt.id, prompt);
+
+        const isAllFeed = category === "All" && !normalizedSearch;
+        const diversityOptions = isAllFeed
+          ? { maxPerTheme: 1, maxPerCategory: 3, requireUniqueImages: true, requireUniquePromptText: true }
+          : { maxPerTheme: normalizedSearch ? 4 : 2, requireUniqueImages: true, requireUniquePromptText: true };
+        let merged = sortPrompts(Array.from(mergedById.values()), sort);
+        merged = dedupeAndDiversifyPrompts(merged, diversityOptions);
+        if (limit) merged = merged.slice(0, limit);
+        return merged;
+      }
     }
   }
 
-  let result = [...STARTER_PROMPTS];
-  if (category !== "All") result = result.filter((prompt) => prompt.category === category);
-  if (featuredOnly) result = result.filter((prompt) => prompt.is_featured);
-  if (normalizedSearch) {
-    result = result.filter((prompt) =>
-      `${prompt.title} ${prompt.description} ${prompt.category} ${prompt.tags.join(" ")}`
-        .toLowerCase()
-        .includes(normalizedSearch),
-    );
-  }
-  result = sortPrompts(result, sort);
+  const isAllFeed = category === "All" && !normalizedSearch;
+  const diversityOptions = isAllFeed
+    ? { maxPerTheme: 1, maxPerCategory: 3, requireUniqueImages: true, requireUniquePromptText: true }
+    : { maxPerTheme: normalizedSearch ? 4 : 2, requireUniqueImages: true, requireUniquePromptText: true };
+  let result = sortPrompts(fallbackPrompts, sort);
+  result = dedupeAndDiversifyPrompts(result, diversityOptions);
   if (limit) result = result.slice(0, limit);
   return result;
 }
@@ -120,7 +263,7 @@ const getPromptsCached = unstable_cache(
       featuredOnly,
       limit: limit ?? undefined,
     }),
-  ["public-prompts-v1"],
+  ["public-prompts-v5"],
   { revalidate: PUBLIC_DATA_REVALIDATE_SECONDS },
 );
 
@@ -288,9 +431,12 @@ async function getCommunityFeedUncached(options?: GetCommunityFeedOptions) {
         id: post.id,
         likes: post.likes,
         created_at: post.created_at,
+        generation_id: generation.id,
+        prompt_id: prompt.id,
         prompt_title: prompt.title,
         prompt_category: prompt.category,
         generated_image_url: generation.generated_image_url,
+        user_id: post.user_id,
         username: user.full_name ?? "Anonymous",
         user_avatar_url: user.avatar_url,
       } satisfies CommunityPostView;
@@ -385,9 +531,12 @@ async function getPromptCommunityResultsUncached(promptId: string, limit = 12) {
         id: post.id,
         likes: post.likes,
         created_at: post.created_at,
+        generation_id: generation.id,
+        prompt_id: prompt.id,
         prompt_title: prompt.title,
         prompt_category: prompt.category,
         generated_image_url: generation.generated_image_url,
+        user_id: post.user_id,
         username: user.full_name ?? "Anonymous",
         user_avatar_url: user.avatar_url,
       } satisfies CommunityPostView;

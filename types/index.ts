@@ -79,11 +79,44 @@ export interface CommunityPostView {
   id: string;
   likes: number;
   created_at: string;
+  generation_id?: string;
+  prompt_id?: string;
   prompt_title: string;
   prompt_category: string;
   generated_image_url: string;
+  user_id?: string;
   username: string;
   user_avatar_url: string | null;
+}
+
+export interface CommunityCommentView {
+  id: string;
+  post_id: string;
+  user_id: string;
+  comment_text: string;
+  created_at: string;
+  username: string;
+  user_avatar_url: string | null;
+  is_owner: boolean;
+}
+
+export interface PromptCollection {
+  id: string;
+  name: string;
+  is_default: boolean;
+  created_at: string;
+  prompt_count: number;
+}
+
+export interface SavedPromptItem {
+  collection_id: string;
+  prompt_id: string;
+  created_at: string;
+  collection: Pick<PromptCollection, "id" | "name" | "is_default">;
+  prompt: Pick<
+    Prompt,
+    "id" | "title" | "description" | "category" | "example_image_url" | "tags" | "use_count" | "created_at"
+  >;
 }
 
 export interface GenerationWithPrompt extends Generation {
