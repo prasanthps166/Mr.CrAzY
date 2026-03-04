@@ -206,7 +206,10 @@ async function main() {
     PORT: String(port),
   };
 
-  const devCommand = `npm run dev -- --port ${port}`;
+  // Turbopack can intermittently fail in CI/smoke runs on Windows due to temp manifest writes.
+  // Default to webpack dev server for deterministic smoke execution.
+  const devScript = (process.env.SMOKE_DEV_SCRIPT || "dev:webpack").trim();
+  const devCommand = `npm run ${devScript} -- --port ${port}`;
   const devProcess = spawn(devCommand, {
     cwd: workspace,
     env: serverEnv,
