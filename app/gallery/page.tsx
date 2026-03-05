@@ -8,7 +8,9 @@ import { PromptCard } from "@/components/PromptCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PROMPT_CATEGORIES } from "@/lib/constants";
-import { getPrompts } from "@/lib/data";
+import { getPrompts, getRecommendedPrompts } from "@/lib/data";
+import { buildPromptTagCloud, normalizePromptTag } from "@/lib/prompt-tags";
+import { getViewerUserId } from "@/lib/server-user";
 import { absoluteUrl, buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
@@ -19,33 +21,83 @@ export const metadata: Metadata = buildMetadata({
   keywords: ["AI prompts", "prompt styles", "trending prompts", "photo styles"],
 });
 
+const PAGE_SIZE = 18;
+const MAX_PAGE_LIMIT = 72;
+
 type GalleryPageProps = {
   searchParams: {
     category?: string;
     search?: string;
     sort?: string;
+    tag?: string;
+    limit?: string;
   };
 };
 
-function buildQuery(params: { category?: string; search?: string; sort?: string }) {
+function parseLimit(value: string | undefined) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return PAGE_SIZE;
+  return Math.max(PAGE_SIZE, Math.min(MAX_PAGE_LIMIT, Math.floor(numeric)));
+}
+
+function parseCategory(value: string | undefined) {
+  const normalized = value?.trim();
+  if (!normalized) return "All";
+  return (PROMPT_CATEGORIES as readonly string[]).includes(normalized) ? normalized : "All";
+}
+
+function parsePromptSort(value: string | undefined) {
+  if (value === "newest") return "newest" as const;
+  if (value === "most_used") return "most_used" as const;
+  return "trending" as const;
+}
+function buildQuery(params: {
+  category?: string;
+  search?: string;
+  sort?: string;
+  tag?: string;
+  limit?: number;
+}) {
   const query = new URLSearchParams();
   if (params.category && params.category !== "All") query.set("category", params.category);
   if (params.search) query.set("search", params.search);
   if (params.sort && params.sort !== "trending") query.set("sort", params.sort);
+  if (params.tag) query.set("tag", params.tag);
+  if (params.limit && params.limit > PAGE_SIZE) query.set("limit", String(params.limit));
   const value = query.toString();
   return value ? `?${value}` : "";
 }
 
 export default async function GalleryPage({ searchParams }: GalleryPageProps) {
-  const category = searchParams.category ?? "All";
+  const category = parseCategory(searchParams.category);
   const search = searchParams.search ?? "";
-  const sort = (searchParams.sort ?? "trending") as "trending" | "newest" | "most_used";
+  const trimmedSearch = search.trim();
+  const sort = parsePromptSort(searchParams.sort);
+  const selectedTag = normalizePromptTag(searchParams.tag ?? "");
+  const requestedLimit = parseLimit(searchParams.limit);
 
-  const prompts = await getPrompts({
-    category,
-    search,
-    sort,
-  });
+  const viewerUserId = await getViewerUserId();
+
+  const [promptsWithBuffer, recommendedPrompts] = await Promise.all([
+    getPrompts({
+      category,
+      search,
+      sort,
+      tag: selectedTag,
+      limit: Math.min(MAX_PAGE_LIMIT + 1, requestedLimit + 1),
+    }),
+    getRecommendedPrompts({
+      userId: viewerUserId,
+      limit: 6,
+    }),
+  ]);
+
+  const hasMore = requestedLimit < MAX_PAGE_LIMIT && promptsWithBuffer.length > requestedLimit;
+  const nextLimit = Math.min(MAX_PAGE_LIMIT, requestedLimit + PAGE_SIZE);
+  const prompts = promptsWithBuffer.slice(0, requestedLimit);
+  const tagOptions = buildPromptTagCloud(promptsWithBuffer, 12);
+  const hasActiveFilters = category !== "All" || Boolean(trimmedSearch) || sort !== "trending" || Boolean(selectedTag);
+
   const galleryJsonLd = {
     "@context": "https://schema.org",
     "@type": "ItemList",
@@ -75,7 +127,7 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
       <div className="mb-6 rounded-xl border border-border/60 bg-card/60 p-4">
         <div className="mb-4 flex flex-wrap gap-2">
           {PROMPT_CATEGORIES.map((item) => {
-            const href = buildQuery({ category: item, search, sort });
+            const href = buildQuery({ category: item, search, sort, tag: selectedTag });
             const active = category === item;
             return (
               <Button key={item} variant={active ? "default" : "outline"} size="sm" asChild>
@@ -99,7 +151,8 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
               className="pl-9"
             />
           </div>
-          <input type="hidden" name="category" value={category === "All" ? "" : category} />
+          <input type="hidden" name="category" value={category} />
+          <input type="hidden" name="tag" value={selectedTag} />
           <label htmlFor="gallery-sort" className="sr-only">
             Sort prompts
           </label>
@@ -115,7 +168,61 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
           </select>
           <Button type="submit">Apply</Button>
         </form>
+
+        {tagOptions.length ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Popular tags:</span>
+            <Button size="sm" variant={selectedTag ? "outline" : "default"} asChild>
+              <Link href={`/gallery${buildQuery({ category, search, sort })}`}>All tags</Link>
+            </Button>
+            {tagOptions.map((option) => (
+              <Button key={option.tag} size="sm" variant={selectedTag === option.tag ? "default" : "outline"} asChild>
+                <Link
+                  href={`/gallery${buildQuery({
+                    category,
+                    search,
+                    sort,
+                    tag: option.tag,
+                  })}`}
+                >
+                  #{option.tag}
+                </Link>
+              </Button>
+            ))}
+          </div>
+        ) : null}
       </div>
+
+      {hasActiveFilters ? (
+        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-card/40 p-3 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">Active filters:</span>
+          {category !== "All" ? <span>Category: {category}</span> : null}
+          {selectedTag ? <span>Tag: #{selectedTag}</span> : null}
+          {trimmedSearch ? <span>{`Search: "${trimmedSearch}"`}</span> : null}
+          {sort !== "trending" ? <span>Sort: {sort.replace("_", " ")}</span> : null}
+          <Button size="sm" variant="ghost" className="h-7 px-2" asChild>
+            <Link href="/gallery">Clear all</Link>
+          </Button>
+        </div>
+      ) : null}
+
+      {category === "All" && !trimmedSearch && !selectedTag && recommendedPrompts.length ? (
+        <section className="mb-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-2xl font-semibold tracking-tight">For You</h2>
+            <p className="text-xs text-muted-foreground">Based on your recent activity</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {recommendedPrompts.map((prompt) => (
+              <PromptCard key={`recommended-${prompt.id}`} prompt={prompt} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <p className="mb-4 text-xs text-muted-foreground">
+        Showing {prompts.length} {prompts.length === 1 ? "style" : "styles"}
+      </p>
 
       {prompts.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground">
@@ -130,6 +237,24 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
           ))}
         </div>
       )}
+
+      {hasMore ? (
+        <div className="mt-8 flex justify-center">
+          <Button variant="outline" asChild>
+            <Link
+              href={`/gallery${buildQuery({
+                category,
+                search,
+                sort,
+                tag: selectedTag,
+                limit: nextLimit,
+              })}`}
+            >
+              Load more styles
+            </Link>
+          </Button>
+        </div>
+      ) : null}
 
       <div className="mt-8">
         <AdBanner placement="gallery_bottom" className="w-full" />

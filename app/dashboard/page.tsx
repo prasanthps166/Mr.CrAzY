@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Bookmark, Loader2, Sparkles } from "lucide-react";
+import { Bookmark, Download, Loader2, Search, Sparkles } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
@@ -12,6 +12,13 @@ import { CopyButton } from "@/components/CopyButton";
 import { WatchAdButton } from "@/components/WatchAdButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  buildDashboardHistoryCsv,
+  DashboardHistoryPeriod,
+  DashboardHistorySort,
+  filterDashboardHistory,
+} from "@/lib/dashboard-history";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { Generation, Prompt, UserProfile } from "@/types";
 
@@ -51,6 +58,9 @@ export default function DashboardPage() {
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [resetCountdown, setResetCountdown] = useState(getIstResetCountdown());
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyPeriod, setHistoryPeriod] = useState<DashboardHistoryPeriod>("all");
+  const [historySort, setHistorySort] = useState<DashboardHistorySort>("newest");
 
   const supabase = useMemo(() => {
     try {
@@ -59,6 +69,21 @@ export default function DashboardPage() {
       return null;
     }
   }, []);
+
+  const filteredHistory = useMemo(
+    () =>
+      filterDashboardHistory(history, {
+        search: historySearch,
+        period: historyPeriod,
+        sort: historySort,
+      }),
+    [history, historyPeriod, historySearch, historySort],
+  );
+
+  const sharedGenerations = useMemo(
+    () => history.filter((item) => item.is_public).length,
+    [history],
+  );
 
   useEffect(() => {
     async function load() {
@@ -143,6 +168,24 @@ export default function DashboardPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  function downloadHistoryCsv() {
+    if (!filteredHistory.length) {
+      toast.error("No history rows to export");
+      return;
+    }
+
+    const csv = buildDashboardHistoryCsv(filteredHistory);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `promptgallery-history-${format(new Date(), "yyyyMMdd-HHmm")}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
 
   if (loading) {
     return (
@@ -249,15 +292,68 @@ export default function DashboardPage() {
         </Card>
       ) : null}
 
+      <Card className="mb-6 border-border/60 bg-card/70">
+        <CardHeader>
+          <CardTitle className="font-display text-xl">Generation History</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={historySearch}
+                onChange={(event) => setHistorySearch(event.target.value)}
+                placeholder="Search prompt title, category, description"
+                className="pl-9"
+              />
+            </div>
+            <select
+              value={historyPeriod}
+              onChange={(event) => setHistoryPeriod(event.target.value as DashboardHistoryPeriod)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="Filter history by period"
+            >
+              <option value="all">All Time</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+            </select>
+            <select
+              value={historySort}
+              onChange={(event) => setHistorySort(event.target.value as DashboardHistorySort)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="Sort history"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+            </select>
+            <Button variant="outline" onClick={downloadHistoryCsv} disabled={!filteredHistory.length}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <span>Total: {history.length}</span>
+            <span>Visible: {filteredHistory.length}</span>
+            <span>Shared: {sharedGenerations}</span>
+          </div>
+        </CardContent>
+      </Card>
+
       {history.length === 0 ? (
         <Card className="border-border/60 bg-card/70">
           <CardContent className="p-8 text-sm text-muted-foreground">
             No generations yet. Visit the gallery and start creating.
           </CardContent>
         </Card>
+      ) : filteredHistory.length === 0 ? (
+        <Card className="border-border/60 bg-card/70">
+          <CardContent className="p-8 text-sm text-muted-foreground">
+            No generations matched your filters.
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {history.map((item) => (
+          {filteredHistory.map((item) => (
             <Card key={item.id} className="overflow-hidden border-border/60 bg-card/70">
               <div className="grid grid-cols-2">
                 <div className="relative aspect-square">

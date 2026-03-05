@@ -2,6 +2,8 @@ import { User } from "@supabase/supabase-js";
 import { unstable_cache } from "next/cache";
 
 import { createServiceRoleClient, isSupabaseServiceConfigured } from "@/lib/supabase";
+import { rankRecommendedPrompts } from "@/lib/recommendations";
+import { matchesPromptTag, normalizePromptTag } from "@/lib/prompt-tags";
 import { STARTER_PROMPTS } from "@/lib/starter-prompts";
 import { CommunityPostView, GenerationWithPrompt, Prompt, UserProfile } from "@/types";
 
@@ -22,6 +24,11 @@ async function withTimeout<T>(promiseLike: PromiseLike<T>, timeoutMs = PUBLIC_QU
   }
 
   return result as T | null;
+}
+
+function normalizeCategory(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized || "All";
 }
 
 function getFallbackCommunityFeed(limit = 20) {
@@ -62,6 +69,12 @@ type GetPromptsOptions = {
   search?: string;
   sort?: PromptSort;
   featuredOnly?: boolean;
+  limit?: number;
+  tag?: string;
+};
+
+type GetRecommendedPromptsOptions = {
+  userId: string | null | undefined;
   limit?: number;
 };
 
@@ -182,10 +195,17 @@ function dedupeAndDiversifyPrompts(
   return result;
 }
 
-function applyPromptFilters(prompts: Prompt[], category: string, featuredOnly: boolean, normalizedSearch: string) {
+function applyPromptFilters(
+  prompts: Prompt[],
+  category: string,
+  featuredOnly: boolean,
+  normalizedSearch: string,
+  normalizedTag: string,
+) {
   let result = [...prompts];
   if (category !== "All") result = result.filter((prompt) => prompt.category === category);
   if (featuredOnly) result = result.filter((prompt) => prompt.is_featured);
+  if (normalizedTag) result = result.filter((prompt) => matchesPromptTag(prompt, normalizedTag));
   if (normalizedSearch) {
     result = result.filter((prompt) =>
       `${prompt.title} ${prompt.description} ${prompt.category} ${prompt.tags.join(" ")}`
@@ -197,9 +217,11 @@ function applyPromptFilters(prompts: Prompt[], category: string, featuredOnly: b
 }
 
 async function getPromptsUncached(options?: GetPromptsOptions) {
-  const { category = "All", search = "", sort = "trending", featuredOnly = false, limit } = options ?? {};
+  const { category: rawCategory = "All", search = "", sort = "trending", featuredOnly = false, limit, tag = "" } = options ?? {};
+  const category = normalizeCategory(rawCategory);
   const normalizedSearch = search.trim().toLowerCase();
-  const fallbackPrompts = applyPromptFilters(STARTER_PROMPTS, category, featuredOnly, normalizedSearch);
+  const normalizedTag = normalizePromptTag(tag);
+  const fallbackPrompts = applyPromptFilters(STARTER_PROMPTS, category, featuredOnly, normalizedSearch, normalizedTag);
 
   if (isSupabaseServiceConfigured()) {
     const supabase = createServiceRoleClient();
@@ -214,6 +236,8 @@ async function getPromptsUncached(options?: GetPromptsOptions) {
         );
       }
 
+      if (normalizedTag) query = query.contains("tags", [normalizedTag]);
+
       if (sort === "newest") query = query.order("created_at", { ascending: false });
       if (sort === "most_used") query = query.order("use_count", { ascending: false });
       if (sort === "trending") query = query.order("is_featured", { ascending: false }).order("use_count", { ascending: false });
@@ -226,11 +250,12 @@ async function getPromptsUncached(options?: GetPromptsOptions) {
         for (const prompt of fallbackPrompts) mergedById.set(prompt.id, prompt);
         for (const prompt of result.data as Prompt[]) mergedById.set(prompt.id, prompt);
 
-        const isAllFeed = category === "All" && !normalizedSearch;
+        const isAllFeed = category === "All" && !normalizedSearch && !normalizedTag;
         const diversityOptions = isAllFeed
           ? { maxPerTheme: 1, maxPerCategory: 3, requireUniqueImages: true, requireUniquePromptText: true }
-          : { maxPerTheme: normalizedSearch ? 4 : 2, requireUniqueImages: true, requireUniquePromptText: true };
-        let merged = sortPrompts(Array.from(mergedById.values()), sort);
+          : { maxPerTheme: normalizedSearch || normalizedTag ? 4 : 2, requireUniqueImages: true, requireUniquePromptText: true };
+        let merged = applyPromptFilters(Array.from(mergedById.values()), category, featuredOnly, normalizedSearch, normalizedTag);
+        merged = sortPrompts(merged, sort);
         merged = dedupeAndDiversifyPrompts(merged, diversityOptions);
         if (limit) merged = merged.slice(0, limit);
         return merged;
@@ -238,10 +263,10 @@ async function getPromptsUncached(options?: GetPromptsOptions) {
     }
   }
 
-  const isAllFeed = category === "All" && !normalizedSearch;
+  const isAllFeed = category === "All" && !normalizedSearch && !normalizedTag;
   const diversityOptions = isAllFeed
     ? { maxPerTheme: 1, maxPerCategory: 3, requireUniqueImages: true, requireUniquePromptText: true }
-    : { maxPerTheme: normalizedSearch ? 4 : 2, requireUniqueImages: true, requireUniquePromptText: true };
+    : { maxPerTheme: normalizedSearch || normalizedTag ? 4 : 2, requireUniqueImages: true, requireUniquePromptText: true };
   let result = sortPrompts(fallbackPrompts, sort);
   result = dedupeAndDiversifyPrompts(result, diversityOptions);
   if (limit) result = result.slice(0, limit);
@@ -252,6 +277,7 @@ const getPromptsCached = unstable_cache(
   async (
     category: string,
     search: string,
+    tag: string,
     sort: PromptSort,
     featuredOnly: boolean,
     limit: number | null,
@@ -260,16 +286,18 @@ const getPromptsCached = unstable_cache(
       category,
       search,
       sort,
+      tag,
       featuredOnly,
       limit: limit ?? undefined,
     }),
-  ["public-prompts-v5"],
+  ["public-prompts-v6"],
   { revalidate: PUBLIC_DATA_REVALIDATE_SECONDS },
 );
 
 export async function getPrompts(options?: GetPromptsOptions) {
-  const { category = "All", search = "", sort = "trending", featuredOnly = false, limit } = options ?? {};
-  return getPromptsCached(category, search.trim().toLowerCase(), sort, featuredOnly, limit ?? null);
+  const { category: rawCategory = "All", search = "", sort = "trending", featuredOnly = false, limit, tag = "" } = options ?? {};
+  const category = normalizeCategory(rawCategory);
+  return getPromptsCached(category, search.trim().toLowerCase(), normalizePromptTag(tag), sort, featuredOnly, limit ?? null);
 }
 
 async function getPromptByIdUncached(id: string) {
@@ -291,6 +319,153 @@ export async function getPromptById(id: string) {
   return getPromptByIdCached(id);
 }
 
+async function getRecommendedPromptsUncached(options: GetRecommendedPromptsOptions) {
+  const { userId, limit = 12 } = options;
+  if (!userId) return [] as Prompt[];
+
+  const fallback = await getPrompts({ sort: "trending", limit });
+  if (!isSupabaseServiceConfigured()) return fallback;
+
+  const supabase = createServiceRoleClient();
+  if (!supabase) return fallback;
+
+  const [generationResult, collectionResult, followsResult] = await Promise.all([
+    withTimeout(
+      supabase
+        .from("generations")
+        .select("prompt_id, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(120),
+    ),
+    withTimeout(
+      supabase
+        .from("prompt_collections")
+        .select("id")
+        .eq("user_id", userId),
+    ),
+    withTimeout(
+      supabase
+        .from("user_follows")
+        .select("following_id")
+        .eq("follower_id", userId),
+    ),
+  ]);
+
+  const signalMap = new Map<string, number>();
+
+  const generationRows = generationResult?.data ?? [];
+  for (const row of generationRows) {
+    if (!row.prompt_id) continue;
+    signalMap.set(row.prompt_id, (signalMap.get(row.prompt_id) ?? 0) + 3);
+  }
+
+  const collectionIds = (collectionResult?.data ?? []).map((row) => row.id);
+  if (collectionIds.length) {
+    const itemsResult = await withTimeout(
+      supabase
+        .from("prompt_collection_items")
+        .select("prompt_id")
+        .in("collection_id", collectionIds)
+        .limit(300),
+    );
+
+    for (const row of itemsResult?.data ?? []) {
+      if (!row.prompt_id) continue;
+      signalMap.set(row.prompt_id, (signalMap.get(row.prompt_id) ?? 0) + 5);
+    }
+  }
+
+  const followingIds = Array.from(
+    new Set((followsResult?.data ?? []).map((row) => row.following_id).filter(Boolean)),
+  );
+
+  if (followingIds.length) {
+    const followPostsResult = await withTimeout(
+      supabase
+        .from("community_posts")
+        .select("generation_id")
+        .in("user_id", followingIds)
+        .order("created_at", { ascending: false })
+        .limit(200),
+    );
+
+    const followGenerationIds = Array.from(
+      new Set((followPostsResult?.data ?? []).map((row) => row.generation_id).filter(Boolean)),
+    );
+
+    if (followGenerationIds.length) {
+      const followGenerationsResult = await withTimeout(
+        supabase
+          .from("generations")
+          .select("id, prompt_id")
+          .in("id", followGenerationIds),
+      );
+
+      for (const row of followGenerationsResult?.data ?? []) {
+        if (!row.prompt_id) continue;
+        signalMap.set(row.prompt_id, (signalMap.get(row.prompt_id) ?? 0) + 2);
+      }
+    }
+  }
+
+  const sourcePromptIds = Array.from(signalMap.keys());
+  if (!sourcePromptIds.length) return fallback;
+
+  const sourcePromptsResult = await withTimeout(
+    supabase
+      .from("prompts")
+      .select("*")
+      .in("id", sourcePromptIds),
+  );
+
+  const sourcePrompts = (sourcePromptsResult?.data as Prompt[] | null) ?? [];
+  if (!sourcePrompts.length) return fallback;
+
+  const candidateResult = await withTimeout(
+    supabase
+      .from("prompts")
+      .select("*")
+      .order("is_featured", { ascending: false })
+      .order("use_count", { ascending: false })
+      .limit(180),
+  );
+
+  const candidates = (candidateResult?.data as Prompt[] | null) ?? [];
+
+  let ranked = rankRecommendedPrompts({
+    sourcePrompts,
+    candidates,
+    signals: signalMap,
+    limit,
+  });
+
+  if (ranked.length < limit) {
+    const existingIds = new Set(ranked.map((prompt) => prompt.id));
+    const sourceIds = new Set(sourcePrompts.map((prompt) => prompt.id));
+
+    for (const prompt of fallback) {
+      if (existingIds.has(prompt.id) || sourceIds.has(prompt.id)) continue;
+      ranked.push(prompt);
+      existingIds.add(prompt.id);
+      if (ranked.length >= limit) break;
+    }
+  }
+
+  return ranked.slice(0, limit);
+}
+
+const getRecommendedPromptsCached = unstable_cache(
+  async (userId: string, limit: number) => getRecommendedPromptsUncached({ userId, limit }),
+  ["recommended-prompts-v1"],
+  { revalidate: 300 },
+);
+
+export async function getRecommendedPrompts(options: GetRecommendedPromptsOptions) {
+  const { userId, limit = 12 } = options;
+  if (!userId) return [] as Prompt[];
+  return getRecommendedPromptsCached(userId, Math.max(1, Math.min(24, Math.floor(limit))));
+}
 export async function getUserProfileById(userId: string) {
   if (!isSupabaseServiceConfigured()) return null;
   const supabase = createServiceRoleClient();
@@ -466,7 +641,7 @@ async function getCommunityFeedUncached(options?: GetCommunityFeedOptions) {
     })
     .filter(Boolean) as CommunityPostView[];
 
-  const category = options?.category ?? "All";
+  const category = normalizeCategory(options?.category);
   if (category !== "All") {
     mapped = mapped.filter((post) => post.prompt_category === category);
   }
@@ -486,12 +661,13 @@ const getCommunityFeedCached = unstable_cache(
 
 export async function getCommunityFeed(options?: GetCommunityFeedOptions) {
   const {
-    category = "All",
+    category: rawCategory = "All",
     limit = 20,
     mostLikedThisWeek = false,
     scope = "all",
     viewerUserId = null,
   } = options ?? {};
+  const category = normalizeCategory(rawCategory);
 
   if (scope === "following") {
     return getCommunityFeedUncached({

@@ -1,12 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Download, Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  ApiKeySort,
+  ApiKeyStatusFilter,
+  buildApiKeysCsv,
+  filterAndSortApiKeys,
+  getApiKeysExportFileName,
+} from "@/lib/dashboard-api-keys";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 type ApiKeyRow = {
@@ -28,6 +35,9 @@ export default function DashboardApiPage() {
   const [monthlyLimit, setMonthlyLimit] = useState("500");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [rows, setRows] = useState<ApiKeyRow[]>([]);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ApiKeyStatusFilter>("all");
+  const [sortBy, setSortBy] = useState<ApiKeySort>("newest");
 
   const supabase = useMemo(() => {
     try {
@@ -36,6 +46,18 @@ export default function DashboardApiPage() {
       return null;
     }
   }, []);
+
+  const visibleRows = useMemo(
+    () =>
+      filterAndSortApiKeys(rows, {
+        search,
+        status: statusFilter,
+        sort: sortBy,
+      }),
+    [rows, search, sortBy, statusFilter],
+  );
+
+  const activeCount = useMemo(() => rows.filter((row) => row.is_active).length, [rows]);
 
   const getToken = useCallback(async () => {
     if (!supabase) return null;
@@ -138,6 +160,24 @@ export default function DashboardApiPage() {
     }
   }
 
+  function downloadKeysCsv() {
+    if (!visibleRows.length) {
+      toast.error("No API keys to export");
+      return;
+    }
+
+    const csv = buildApiKeysCsv(visibleRows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = getApiKeysExportFileName();
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10">
       <div className="mb-8 space-y-2">
@@ -178,7 +218,47 @@ export default function DashboardApiPage() {
         <CardHeader>
           <CardTitle className="font-display text-xl">Existing Keys</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search key name or preview"
+                className="pl-9"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as ApiKeyStatusFilter)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="Filter by key status"
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="revoked">Revoked</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as ApiKeySort)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="Sort keys"
+            >
+              <option value="newest">Newest</option>
+              <option value="most_calls">Most Calls</option>
+              <option value="name">Name A-Z</option>
+            </select>
+            <Button variant="outline" onClick={downloadKeysCsv} disabled={!visibleRows.length}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            Active: {activeCount} | Total: {rows.length} | Showing: {visibleRows.length}
+          </div>
+
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -186,16 +266,19 @@ export default function DashboardApiPage() {
             </div>
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No keys yet.</p>
+          ) : visibleRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No keys matched your filters.</p>
           ) : (
-            rows.map((row) => (
+            visibleRows.map((row) => (
               <div
                 key={row.id}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 p-3"
               >
                 <div className="space-y-1">
                   <p className="font-medium">{row.name}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{row.key_preview}</p>
                   <p className="text-xs text-muted-foreground">
-                    {row.is_active ? "Active" : "Revoked"} • Calls: {row.total_calls}/{row.monthly_limit}
+                    {row.is_active ? "Active" : "Revoked"} | Calls: {row.total_calls}/{row.monthly_limit}
                   </p>
                 </div>
                 {row.is_active ? (

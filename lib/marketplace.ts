@@ -36,7 +36,27 @@ type GetMarketplacePromptsOptions = {
   sort?: MarketplaceSort;
   tab?: "all" | "free";
   limit?: number;
+  search?: string;
 };
+
+function normalizeMarketplaceSearch(value?: string) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function normalizeMarketplaceCategory(value?: string) {
+  const normalized = value?.trim();
+  return normalized || "All";
+}
+
+function matchesMarketplaceSearch(
+  prompt: Pick<MarketplacePrompt, "title" | "description" | "category" | "tags">,
+  normalizedSearch: string,
+) {
+  if (!normalizedSearch) return true;
+  const haystack = `${prompt.title} ${prompt.description} ${prompt.category} ${(prompt.tags ?? []).join(" ")}`
+    .toLowerCase();
+  return haystack.includes(normalizedSearch);
+}
 
 async function getMarketplacePromptsUncached(options?: GetMarketplacePromptsOptions) {
   if (!isSupabaseServiceConfigured()) return [] as MarketplacePromptWithCreator[];
@@ -45,18 +65,27 @@ async function getMarketplacePromptsUncached(options?: GetMarketplacePromptsOpti
   if (!supabase) return [] as MarketplacePromptWithCreator[];
 
   const {
-    category = "All",
+    category: rawCategory = "All",
     price = "all",
     minRating = 0,
     sort = "trending",
     tab = "all",
     limit = 24,
+    search = "",
   } = options ?? {};
+
+  const category = normalizeMarketplaceCategory(rawCategory);
+  const normalizedSearch = normalizeMarketplaceSearch(search);
 
   let query = supabase.from("marketplace_prompts").select("*").eq("status", "approved");
 
   if (tab === "free") query = query.eq("is_free", true);
   if (category !== "All") query = query.eq("category", category);
+  if (normalizedSearch) {
+    query = query.or(
+      `title.ilike.%${normalizedSearch}%,description.ilike.%${normalizedSearch}%,category.ilike.%${normalizedSearch}%`,
+    );
+  }
 
   if (price === "free") {
     query = query.eq("is_free", true);
@@ -86,7 +115,13 @@ async function getMarketplacePromptsUncached(options?: GetMarketplacePromptsOpti
   const prompts = promptsResponse?.data;
   if (!prompts?.length) return [] as MarketplacePromptWithCreator[];
 
-  const creatorIds = Array.from(new Set(prompts.map((item) => item.creator_id)));
+  const filteredPrompts = normalizedSearch
+    ? (prompts as MarketplacePrompt[]).filter((prompt) => matchesMarketplaceSearch(prompt, normalizedSearch))
+    : (prompts as MarketplacePrompt[]);
+
+  if (!filteredPrompts.length) return [] as MarketplacePromptWithCreator[];
+
+  const creatorIds = Array.from(new Set(filteredPrompts.map((item) => item.creator_id)));
   const creatorsResponse = await withTimeout(
     supabase
       .from("creator_profiles")
@@ -97,7 +132,7 @@ async function getMarketplacePromptsUncached(options?: GetMarketplacePromptsOpti
 
   const creatorMap = new Map((creators ?? []).map((creator) => [creator.id, creator as CreatorProfile]));
 
-  return prompts.map((prompt) => ({
+  return filteredPrompts.map((prompt) => ({
     ...(prompt as MarketplacePrompt),
     creator: creatorMap.get(prompt.creator_id) ?? null,
   }));
@@ -111,6 +146,7 @@ const getMarketplacePromptsCached = unstable_cache(
     sort: MarketplaceSort,
     tab: "all" | "free",
     limit: number,
+    search: string,
   ) =>
     getMarketplacePromptsUncached({
       category,
@@ -119,22 +155,27 @@ const getMarketplacePromptsCached = unstable_cache(
       sort,
       tab,
       limit,
+      search,
     }),
-  ["marketplace-prompts-v1"],
+  ["marketplace-prompts-v2"],
   { revalidate: MARKETPLACE_REVALIDATE_SECONDS },
 );
 
 export async function getMarketplacePrompts(options?: GetMarketplacePromptsOptions) {
   const {
-    category = "All",
+    category: rawCategory = "All",
     price = "all",
     minRating = 0,
     sort = "trending",
     tab = "all",
     limit = 24,
+    search = "",
   } = options ?? {};
 
-  return getMarketplacePromptsCached(category, price, minRating, sort, tab, limit);
+  const category = normalizeMarketplaceCategory(rawCategory);
+  const normalizedSearch = normalizeMarketplaceSearch(search);
+
+  return getMarketplacePromptsCached(category, price, minRating, sort, tab, limit, normalizedSearch);
 }
 
 export async function getMarketplacePromptDetail(promptId: string, userId?: string | null) {

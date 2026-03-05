@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
@@ -12,6 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { PromptCollection, SavedPromptItem } from "@/types";
+
+type SavedPromptSort = "recent" | "most_used" | "title";
 
 export default function SavedPromptsPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -26,6 +28,9 @@ export default function SavedPromptsPage() {
   const [renamingCollection, setRenamingCollection] = useState(false);
   const [deletingCollectionId, setDeletingCollectionId] = useState<string | null>(null);
   const [removingPromptId, setRemovingPromptId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [sortBy, setSortBy] = useState<SavedPromptSort>("recent");
 
   const supabase = useMemo(() => {
     try {
@@ -91,6 +96,41 @@ export default function SavedPromptsPage() {
     [collections, selectedCollectionId],
   );
 
+  const categoryOptions = useMemo(() => {
+    const unique = Array.from(new Set(items.map((item) => item.prompt.category))).sort((a, b) =>
+      a.localeCompare(b),
+    );
+    return ["All", ...unique];
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+
+    const filtered = items.filter((item) => {
+      if (categoryFilter !== "All" && item.prompt.category !== categoryFilter) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const haystack = `${item.prompt.title} ${item.prompt.description} ${item.prompt.category} ${item.prompt.tags.join(" ")}`
+        .toLowerCase();
+      return haystack.includes(normalizedSearch);
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "most_used") {
+        return b.prompt.use_count - a.prompt.use_count;
+      }
+      if (sortBy === "title") {
+        return a.prompt.title.localeCompare(b.prompt.title);
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [categoryFilter, items, searchQuery, sortBy]);
+
   useEffect(() => {
     async function bootstrap() {
       if (!supabase) {
@@ -126,6 +166,12 @@ export default function SavedPromptsPage() {
   useEffect(() => {
     setCollectionNameDraft(selectedCollection?.name ?? "");
   }, [selectedCollection?.id, selectedCollection?.name]);
+
+  useEffect(() => {
+    if (categoryFilter !== "All" && !categoryOptions.includes(categoryFilter)) {
+      setCategoryFilter("All");
+    }
+  }, [categoryFilter, categoryOptions]);
 
   async function createCollection() {
     const name = newCollectionName.trim();
@@ -371,6 +417,52 @@ export default function SavedPromptsPage() {
         </Card>
       ) : null}
 
+      {selectedCollectionId ? (
+        <Card className="mb-6 border-border/60 bg-card/70">
+          <CardHeader>
+            <CardTitle className="font-display text-lg">Find Saved Prompts</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search title, tags, category"
+                  className="pl-9"
+                />
+              </div>
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                aria-label="Filter by category"
+              >
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value as SavedPromptSort)}
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                aria-label="Sort saved prompts"
+              >
+                <option value="recent">Recently Saved</option>
+                <option value="most_used">Most Used</option>
+                <option value="title">Title A-Z</option>
+              </select>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Showing {filteredItems.length} of {items.length} prompt{items.length === 1 ? "" : "s"}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {!selectedCollectionId ? (
         <Card className="border-border/60 bg-card/70">
           <CardContent className="p-6 text-sm text-muted-foreground">
@@ -383,9 +475,15 @@ export default function SavedPromptsPage() {
             This collection is empty. Save prompts from gallery pages to see them here.
           </CardContent>
         </Card>
+      ) : filteredItems.length === 0 ? (
+        <Card className="border-border/60 bg-card/70">
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            No saved prompts matched your filters.
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => (
+          {filteredItems.map((item) => (
             <Card key={`${item.collection_id}:${item.prompt_id}`} className="overflow-hidden border-border/60 bg-card/70">
               <div className="relative aspect-[4/5]">
                 <Image

@@ -8,6 +8,7 @@ import { MarketplacePromptCard } from "@/components/marketplace/MarketplacePromp
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   MarketplacePriceFilter,
   MarketplaceSort,
@@ -15,6 +16,9 @@ import {
   getMarketplacePrompts,
 } from "@/lib/marketplace";
 import { absoluteUrl, buildMetadata } from "@/lib/seo";
+
+const PAGE_SIZE = 24;
+const MAX_PAGE_LIMIT = 240;
 
 export const metadata: Metadata = buildMetadata({
   title: "Prompt Marketplace",
@@ -31,6 +35,8 @@ type MarketplacePageProps = {
     price?: MarketplacePriceFilter;
     rating?: string;
     sort?: MarketplaceSort;
+    search?: string;
+    limit?: string;
   };
 };
 
@@ -40,6 +46,8 @@ function buildQuery(params: {
   price?: MarketplacePriceFilter;
   rating?: string;
   sort?: MarketplaceSort;
+  search?: string;
+  limit?: number;
 }) {
   const query = new URLSearchParams();
   if (params.tab && params.tab !== "all") query.set("tab", params.tab);
@@ -47,8 +55,16 @@ function buildQuery(params: {
   if (params.price && params.price !== "all") query.set("price", params.price);
   if (params.rating && params.rating !== "0") query.set("rating", params.rating);
   if (params.sort && params.sort !== "trending") query.set("sort", params.sort);
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if ((params.limit ?? PAGE_SIZE) > PAGE_SIZE) query.set("limit", String(params.limit));
   const value = query.toString();
   return value ? `?${value}` : "";
+}
+
+function parseMarketplaceLimit(value?: string) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return PAGE_SIZE;
+  return Math.max(PAGE_SIZE, Math.min(MAX_PAGE_LIMIT, Math.floor(numeric)));
 }
 
 export default async function MarketplacePage({ searchParams }: MarketplacePageProps) {
@@ -62,8 +78,10 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
   const sort = allowedSorts.includes(searchParams.sort ?? "trending")
     ? (searchParams.sort ?? "trending")
     : "trending";
+  const search = searchParams.search?.trim() ?? "";
+  const requestedLimit = parseMarketplaceLimit(searchParams.limit);
 
-  const [categories, prompts] = await Promise.all([
+  const [categories, promptRows] = await Promise.all([
     getMarketplaceCategories(),
     getMarketplacePrompts({
       category,
@@ -71,8 +89,16 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
       minRating: Number.isNaN(rating) ? 0 : rating,
       sort,
       tab,
+      search,
+      limit: Math.min(requestedLimit + 1, MAX_PAGE_LIMIT),
     }),
   ]);
+
+  const hasMore = promptRows.length > requestedLimit;
+  const prompts = hasMore ? promptRows.slice(0, requestedLimit) : promptRows;
+  const nextLimit = Math.min(requestedLimit + PAGE_SIZE, MAX_PAGE_LIMIT);
+  const canLoadMore = hasMore && requestedLimit < MAX_PAGE_LIMIT;
+
   const marketplaceJsonLd = {
     "@context": "https://schema.org",
     "@type": "ItemList",
@@ -111,6 +137,7 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
           tab,
           category,
           sort,
+          search,
         }}
       />
 
@@ -130,7 +157,17 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Button variant={tab === "all" ? "default" : "outline"} size="sm" asChild>
-            <Link href={`/marketplace${buildQuery({ tab: "all", category, price, rating: String(rating), sort })}`}>
+            <Link
+              href={`/marketplace${buildQuery({
+                tab: "all",
+                category,
+                price,
+                rating: String(rating),
+                sort,
+                search,
+                limit: requestedLimit,
+              })}`}
+            >
               All Prompts
             </Link>
           </Button>
@@ -142,6 +179,8 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
                 price,
                 rating: String(rating),
                 sort,
+                search,
+                limit: requestedLimit,
               })}`}
             >
               Free Prompts
@@ -149,7 +188,18 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
           </Button>
         </div>
 
-        <form className="grid w-full gap-3 sm:w-auto sm:grid-cols-4">
+        <form className="grid w-full gap-3 sm:w-auto sm:grid-cols-5">
+          <label htmlFor="marketplace-search" className="sr-only">
+            Search prompts
+          </label>
+          <Input
+            id="marketplace-search"
+            name="search"
+            defaultValue={search}
+            placeholder="Search title, description, category"
+            className="sm:col-span-2"
+          />
+
           <label htmlFor="marketplace-category" className="sr-only">
             Filter by category
           </label>
@@ -177,8 +227,8 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
           >
             <option value="all">All Prices</option>
             <option value="free">Free</option>
-            <option value="under_50">Under ₹50</option>
-            <option value="under_100">Under ₹100</option>
+            <option value="under_50">Under Rs 50</option>
+            <option value="under_100">Under Rs 100</option>
           </select>
 
           <label htmlFor="marketplace-rating" className="sr-only">
@@ -212,42 +262,73 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
           </select>
 
           <input type="hidden" name="tab" value={tab} />
-          <Button type="submit" className="sm:col-span-4">
-            Apply Filters
-          </Button>
+          <div className="flex gap-2 sm:col-span-5">
+            <Button type="submit" className="flex-1">
+              Apply Filters
+            </Button>
+            <Button type="button" variant="outline" asChild>
+              <Link href="/marketplace">Clear</Link>
+            </Button>
+          </div>
         </form>
       </div>
+
+      <p className="mb-4 text-xs text-muted-foreground">
+        Showing {prompts.length} prompt(s){search ? ` for "${search}"` : ""}.
+      </p>
 
       {!prompts.length ? (
         <div className="rounded-lg border border-dashed border-border/70 p-10 text-center text-sm text-muted-foreground">
           No marketplace prompts matched your filters.
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {prompts.map((prompt, index) => (
-            <Fragment key={prompt.id}>
-              {index === ctaInsertIndex ? (
-                <Card className="col-span-full border-primary/40 bg-primary/10">
-                  <CardContent className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
-                    <div>
-                      <p className="text-sm font-semibold">Become a Creator</p>
-                      <p className="text-sm text-muted-foreground">
-                        Publish your own prompts, reach a global audience, and keep 70% of every sale.
-                      </p>
-                    </div>
-                    <Button asChild>
-                      <Link href="/creator/signup" className="gap-2">
-                        <Sparkles className="h-4 w-4" />
-                        Start Selling
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : null}
-              <MarketplacePromptCard prompt={prompt} />
-            </Fragment>
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {prompts.map((prompt, index) => (
+              <Fragment key={prompt.id}>
+                {index === ctaInsertIndex ? (
+                  <Card className="col-span-full border-primary/40 bg-primary/10">
+                    <CardContent className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
+                      <div>
+                        <p className="text-sm font-semibold">Become a Creator</p>
+                        <p className="text-sm text-muted-foreground">
+                          Publish your own prompts, reach a global audience, and keep 70% of every sale.
+                        </p>
+                      </div>
+                      <Button asChild>
+                        <Link href="/creator/signup" className="gap-2">
+                          <Sparkles className="h-4 w-4" />
+                          Start Selling
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : null}
+                <MarketplacePromptCard prompt={prompt} />
+              </Fragment>
+            ))}
+          </div>
+
+          {canLoadMore ? (
+            <div className="mt-6 flex justify-center">
+              <Button variant="outline" asChild>
+                <Link
+                  href={`/marketplace${buildQuery({
+                    tab,
+                    category,
+                    price,
+                    rating: String(rating),
+                    sort,
+                    search,
+                    limit: nextLimit,
+                  })}`}
+                >
+                  Load More
+                </Link>
+              </Button>
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );

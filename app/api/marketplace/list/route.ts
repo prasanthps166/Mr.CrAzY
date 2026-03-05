@@ -27,6 +27,15 @@ function parseLimit(value: string | null): number {
   return Math.max(1, Math.min(100, Math.floor(numeric)));
 }
 
+function parseCategory(value: string | null) {
+  const normalized = value?.trim();
+  return normalized || "All";
+}
+
+function parseSearch(value: string | null) {
+  return value?.trim() ?? "";
+}
+
 export async function GET(request: NextRequest) {
   const authUser = await getAuthUserFromRequest(request);
   if (!authUser) {
@@ -34,13 +43,14 @@ export async function GET(request: NextRequest) {
   }
 
   const params = request.nextUrl.searchParams;
-  const category = params.get("category") ?? "All";
+  const category = parseCategory(params.get("category"));
   const price = parsePrice(params.get("price"));
   const rating = Number(params.get("rating") ?? "0");
   const minRating = Number.isFinite(rating) ? Math.max(0, Math.min(5, rating)) : 0;
   const sort = parseSort(params.get("sort"));
   const tab = parseTab(params.get("tab"));
   const limit = parseLimit(params.get("limit"));
+  const search = parseSearch(params.get("search"));
 
   const prompts = await getMarketplacePrompts({
     category,
@@ -49,6 +59,7 @@ export async function GET(request: NextRequest) {
     sort,
     tab,
     limit,
+    search,
   });
 
   return NextResponse.json({ prompts });

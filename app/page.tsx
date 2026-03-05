@@ -10,7 +10,8 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FEATURED_EXAMPLES, PRICING } from "@/lib/constants";
-import { getCommunityFeed, getPrompts } from "@/lib/data";
+import { getCommunityFeed, getPrompts, getRecommendedPrompts } from "@/lib/data";
+import { getViewerUserId } from "@/lib/server-user";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
@@ -22,9 +23,12 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function HomePage() {
-  const [featuredPrompts, communityPreview] = await Promise.all([
+  const viewerUserId = await getViewerUserId();
+
+  const [featuredPrompts, communityPreview, recommendedPrompts] = await Promise.all([
     getPrompts({ featuredOnly: true, limit: 6, sort: "trending" }),
     getCommunityFeed({ limit: 8 }),
+    getRecommendedPrompts({ userId: viewerUserId, limit: 6 }),
   ]);
   const homeJsonLd = [
     {
@@ -161,6 +165,24 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {recommendedPrompts.length ? (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-3xl font-semibold tracking-tight">Recommended For You</h2>
+            <Button variant="ghost" asChild>
+              <Link href="/gallery">See more</Link>
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Personalized from your saved prompts, generations, and creators you follow.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {recommendedPrompts.map((prompt) => (
+              <PromptCard key={prompt.id} prompt={prompt} />
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="space-y-4">
         <div className="rounded-2xl border border-border/60 bg-card/70 p-6">
           <h2 className="font-display text-2xl font-semibold">Community Showcase</h2>

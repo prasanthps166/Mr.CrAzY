@@ -85,6 +85,7 @@ export async function getPrompts(
     category?: string;
     search?: string;
     sort?: "trending" | "newest" | "most_used";
+    tag?: string;
     featuredOnly?: boolean;
     limit?: number;
   } = {},
@@ -93,11 +94,33 @@ export async function getPrompts(
   if (options.category) params.set("category", options.category);
   if (options.search) params.set("search", options.search);
   if (options.sort) params.set("sort", options.sort);
+  if (options.tag) params.set("tag", options.tag);
   if (options.featuredOnly) params.set("featuredOnly", "true");
   if (typeof options.limit === "number") params.set("limit", String(options.limit));
 
   const query = params.toString();
   return apiFetch<{ prompts: Prompt[] }>(`/api/prompts${query ? `?${query}` : ""}`, { token });
+}
+
+export async function getPromptTags(
+  token: string,
+  options: {
+    category?: string;
+    search?: string;
+    sort?: "trending" | "newest" | "most_used";
+    tag?: string;
+    limit?: number;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  if (options.category) params.set("category", options.category);
+  if (options.search) params.set("search", options.search);
+  if (options.sort) params.set("sort", options.sort);
+  if (options.tag) params.set("tag", options.tag);
+  if (typeof options.limit === "number") params.set("limit", String(options.limit));
+  const query = params.toString();
+
+  return apiFetch<{ tags: Array<{ tag: string; count: number }>; sampleSize: number }>(`/api/prompts/tags${query ? `?${query}` : ""}`, { token });
 }
 
 export async function getPrompt(token: string, promptId: string) {

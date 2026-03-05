@@ -6,25 +6,38 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
-export function CopyButton({ value }: { value: string }) {
+type CopyButtonProps = {
+  value: string;
+  label?: string;
+  copiedLabel?: string;
+  successMessage?: string;
+  errorMessage?: string;
+};
+
+export function CopyButton({
+  value,
+  label = "Copy",
+  copiedLabel = "Copied",
+  successMessage = "Prompt copied",
+  errorMessage = "Unable to copy prompt",
+}: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
   async function onCopy() {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
-      toast.success("Prompt copied");
+      toast.success(successMessage);
       setTimeout(() => setCopied(false), 1400);
     } catch {
-      toast.error("Unable to copy prompt");
+      toast.error(errorMessage);
     }
   }
 
   return (
     <Button variant="outline" size="sm" onClick={onCopy}>
       {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
-      {copied ? "Copied" : "Copy"}
+      {copied ? copiedLabel : label}
     </Button>
   );
 }
-
