@@ -106,17 +106,17 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
   const fitCards = [
     {
       title: "Why it stands out",
-      description: `This prompt pushes a ${prompt.category.toLowerCase()} direction with more art direction than a generic filter pass.`,
+      description: `This prompt gives you a sharper ${prompt.category.toLowerCase()} direction than a generic filter pass.`,
     },
     {
       title: "What it leans into",
       description: primaryTags.length
-        ? `The strongest signals in this look are ${primaryTags.join(", ")}. That gives you a clearer starting point before you upload.`
-        : "The overall finish is tuned to feel cleaner, more deliberate, and easier to share.",
+        ? `The strongest signals are ${primaryTags.join(", ")}. That gives you a clearer starting point before you upload.`
+        : "The finish stays clean, deliberate, and easy to share.",
     },
     {
       title: "How to use it",
-      description: "Upload one portrait, generate once, and compare the result before saving, sharing, or trying a second variation.",
+      description: "Upload one portrait, run it once, then keep it, save it, or try a second variation.",
     },
   ];
 
@@ -190,8 +190,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
                 Turn your photo into this look without writing the prompt yourself.
               </h2>
               <p className="text-sm leading-7 text-muted-foreground">
-                This page should make the decision easy: inspect the look, check the prompt text, then generate with
-                one click.
+                Inspect the look, copy the prompt, then generate.
               </p>
             </div>
 
@@ -237,14 +236,21 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              {promptSignals.map((item) => (
-                <div key={item.label} className="rounded-[1.35rem] border border-border/60 bg-background/70 p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                    {item.label}
-                  </p>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-foreground">{item.value}</p>
-                </div>
-              ))}
+              {promptSignals.map((item) => {
+                const value =
+                  item.label === "Top tags" && primaryTags.length
+                    ? primaryTags.map((tag) => `#${tag}`).join(" • ")
+                    : item.value;
+
+                return (
+                  <div key={item.label} className="rounded-[1.35rem] border border-border/60 bg-background/70 p-4">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      {item.label}
+                    </p>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-foreground">{value}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -289,7 +295,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
           <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Style Family</p>
           <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Browse the tags and related category.</h2>
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
-            If this prompt is close but not quite right, these links are the fastest way to stay in the same visual lane.
+            If this prompt is close but not exact, these links keep you in the same visual lane.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -317,7 +323,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
                 Keep browsing
               </p>
               <p className="mt-2 text-sm leading-6 text-foreground">
-                Explore more prompts in {prompt.category} if you want the same mood with a different finish.
+                Explore more {prompt.category} prompts with a similar mood.
               </p>
             </div>
             <div className="rounded-[1.35rem] border border-border/60 bg-background/70 p-4">
@@ -325,7 +331,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
                 Conversion path
               </p>
               <p className="mt-2 text-sm leading-6 text-foreground">
-                Save it first if you are still comparing. Generate now if the example image already matches your taste.
+                Save it if you are still comparing. Generate if the preview already feels right.
               </p>
             </div>
           </div>
@@ -361,8 +367,8 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
               </h2>
               <p className="text-base leading-7 text-amber-50/72">
                 {communityPosts.length
-                  ? "The strongest prompt pages do not stop at a polished demo image. They show how the style holds up across different people and photos."
-                  : "Be the first to test it, then share the result to set the tone for everyone who lands here next."}
+                  ? "Real uploads show how this prompt holds up across different faces and photos."
+                  : "Be the first to test it and set the reference result for this prompt."}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -399,7 +405,7 @@ export default async function PromptDetailPage({ params }: PromptDetailPageProps
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
                 Keep Browsing
               </p>
-              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Related prompts in the same lane</h2>
+              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">More prompts in the same lane</h2>
             </div>
             <Button variant="ghost" asChild>
               <Link href={`/gallery?category=${encodeURIComponent(prompt.category)}`}>More in {prompt.category}</Link>

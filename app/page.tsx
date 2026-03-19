@@ -19,11 +19,11 @@ const RecommendedPromptsSection = nextDynamic(
 );
 
 export const metadata: Metadata = buildMetadata({
-  title: "AI Photo Prompt Gallery",
+  title: "Creator-Built Prompt Gallery",
   description:
-    "Transform photos with AI styles in seconds. Browse curated prompts, generate instantly, and share your results.",
+    "Browse creator-built prompt looks, inspect real community proof, and run the right style on your own photo in one upload.",
   path: "/",
-  keywords: ["AI image generator", "photo to AI art", "prompt gallery", "image transformation"],
+  keywords: ["creator-built prompts", "prompt gallery", "photo look generator", "image transformation"],
 });
 
 export const dynamic = "force-static";
@@ -31,17 +31,17 @@ export const dynamic = "force-static";
 const premiumPillars = [
   {
     title: "Curated looks",
-    description: "Start from creator-built styles with a clear point of view instead of a blank prompt box.",
+    description: "Start from creator-built styles instead of an empty prompt box.",
     icon: Sparkles,
   },
   {
     title: "Fast workflow",
-    description: "Choose a prompt, upload once, and get a polished result without fiddly setup or extra steps.",
+    description: "Pick a style, upload once, and get a polished result fast.",
     icon: WandSparkles,
   },
   {
     title: "Clean finish",
-    description: "Free is enough to try it. Pro removes watermarks and keeps the final export presentation-ready.",
+    description: "Try it free. Upgrade when you want watermark-free exports.",
     icon: ShieldCheck,
   },
 ] as const;
@@ -49,15 +49,15 @@ const premiumPillars = [
 const workflowSteps = [
   {
     label: "Choose a look",
-    description: "Browse styles that already work for portraits, anime avatars, festivals, and cinematic edits.",
+    description: "Browse portrait, anime, festival, and cinematic styles.",
   },
   {
     label: "Upload one photo",
-    description: "Keep the workflow simple. Start from a single image and preserve the details that matter.",
+    description: "Use one clear image and keep the details that matter.",
   },
   {
     label: "Download or share",
-    description: "Use your result immediately, or post it to the community to see how the style lands in the wild.",
+    description: "Download it or post it to the community.",
   },
 ] as const;
 
@@ -133,13 +133,13 @@ export default async function HomePage() {
     {
       label: "Most-used looks",
       value: `${formatCompactNumber(totalSignatureUses)}+`,
-      detail: "Runs across the strongest prompts featured on the site.",
+      detail: "Combined runs across the featured prompt set.",
       icon: TrendingUp,
     },
     {
       label: "Top prompt proof",
       value: heroPrompt ? `${formatCompactNumber(heroPrompt.use_count)} uses` : "Curated",
-      detail: heroPrompt ? `${heroPrompt.title} keeps getting reused.` : "The homepage starts from proven styles.",
+      detail: heroPrompt ? `${heroPrompt.title} is one of the most reused prompts.` : "The homepage starts from proven styles.",
       icon: Sparkles,
     },
     {
@@ -147,42 +147,42 @@ export default async function HomePage() {
       value: totalCommunityLikes > 0 ? `${formatCompactNumber(totalCommunityLikes)} likes` : "Live examples",
       detail:
         totalCommunityLikes > 0
-          ? "Across the featured community results on the homepage."
-          : "Real outputs still sit next to the polished examples.",
+          ? "Across the community picks on this page."
+          : "Real outputs sit next to the polished examples.",
       icon: WandSparkles,
     },
     {
       label: "Upgrade logic",
       value: freeDailyCredits > 0 ? `${freeDailyCredits} free daily` : PRICING.pro.price,
-      detail: `${PRICING.pro.price} Pro only matters once clean exports or frequent runs are the blocker.`,
+      detail: `${PRICING.pro.price} Pro matters when clean exports or repeat use matter.`,
       icon: WalletCards,
     },
   ] as const;
   const decisionSignals = [
     {
-      eyebrow: "Most reused prompt",
+      eyebrow: "Most-used prompt",
       title: heroPrompt?.title ?? "Start from a proven look",
       description: heroPrompt
-        ? `${heroPrompt.use_count} uses means the lead example is already doing conversion work before the upload starts.`
-        : "The homepage lead is intentionally tied to the strongest prompt proof available.",
+        ? `${heroPrompt.use_count} uses is a strong signal that the preview converts.`
+        : "The lead card comes from the strongest prompt proof available.",
       href: heroPrompt ? `/gallery/${heroPrompt.id}` : "/gallery",
       cta: "Inspect the prompt",
     },
     {
-      eyebrow: communityLead ? "Proof from the community" : "Real examples still matter",
-      title: communityLead ? `${communityLead.prompt_title} in real hands` : "The product needs more than a brand demo",
+      eyebrow: communityLead ? "Community proof" : "Real examples",
+      title: communityLead ? `${communityLead.prompt_title} on real photos` : "Real outputs, not mockups",
       description: communityLead
-        ? `${communityLead.username} shared this result and it already has ${communityLead.likes} likes. That is stronger trust than a polished mockup.`
-        : "When the feed is sparse, the next best trust move is to keep showing the strongest real outputs, not manufactured testimonials.",
+        ? `${communityLead.username}'s post already has ${communityLead.likes} likes.`
+        : "Use real outputs to judge the style quickly.",
       href: "/community",
       cta: "Browse the community",
     },
     {
-      eyebrow: "Pay only when it is working",
+      eyebrow: "Try first, pay later",
       title: `${freeDailyCredits || 2} daily credits before ${PRICING.pro.price} Pro`,
       description: bestCreditPack
-        ? `${bestCreditPack.label} is there for occasional use. Pro stays easy to understand: no watermark, no ads, cleaner exports.`
-        : "The pricing path stays honest: validate the workflow first, then pay for polish or frequency.",
+        ? `${bestCreditPack.label} covers occasional use. Pro removes ads, watermarks, and export friction.`
+        : "Validate the workflow first, then pay for cleaner exports or repeat use.",
       href: "/pricing",
       cta: "Compare plans",
     },
@@ -197,16 +197,15 @@ export default async function HomePage() {
           <div className="space-y-5">
             <p className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/75 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Curated AI Portrait Studio
+              Creator-Built Prompt Looks
             </p>
 
             <div className="space-y-4">
               <h1 className="max-w-3xl font-display text-5xl font-semibold leading-none tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-                Make one good photo look art-directed.
+                Start from a proven look, not a blank prompt.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
-                Choose a creator-built style, upload once, and get a polished portrait, anime avatar, or festival
-                poster in seconds without wrestling with prompts.
+                Browse creator-built prompt looks, inspect real results, and run the one that fits your photo in one upload.
               </p>
             </div>
           </div>
@@ -371,11 +370,10 @@ export default async function HomePage() {
         <div className="space-y-3">
           <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Decision Signals</p>
           <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em]">
-            Trust comes from the product, not fake praise.
+            Real proof beats generic hype.
           </h2>
           <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-            Instead of manufactured testimonials, the page now leans on what actually reduces risk: repeated prompt
-            usage, real community outputs, and pricing that explains when paying makes sense.
+            We show reused prompts, community results, and clear pricing so you can judge the product fast.
           </p>
           <div className="rounded-[1.5rem] border border-border/60 bg-card/70 p-4">
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Best known for</p>
@@ -412,8 +410,7 @@ export default async function HomePage() {
               The most reused looks on the platform right now.
             </h2>
             <p className="text-base leading-7 text-muted-foreground">
-              These are not filler examples. They are the looks people keep choosing because the preview and the first
-              result tend to line up.
+              These are the looks people keep coming back to because the preview and first result usually line up.
             </p>
           </div>
           <Button variant="ghost" asChild>
@@ -430,7 +427,7 @@ export default async function HomePage() {
 
       <RecommendedPromptsSection
         title="Recommended For You"
-        description="Once you sign in, your homepage starts surfacing prompts that match your taste and history."
+        description="Sign in to surface prompts closer to what you already save and generate."
         limit={4}
         linkHref="/gallery"
         linkLabel="See more"
@@ -448,8 +445,7 @@ export default async function HomePage() {
                 See how the styles hold up on real photos.
               </h2>
               <p className="max-w-xl text-base leading-7 text-amber-50/72">
-                The fastest way to trust an AI photo product is to see what other people actually made with it, not
-                just a polished brand demo.
+                The quickest trust check is seeing what real people made with the prompt.
               </p>
             </div>
 
@@ -471,7 +467,7 @@ export default async function HomePage() {
                   <div className="min-w-0">
                     <h3 className="font-display text-2xl leading-tight">{communityLead.prompt_title}</h3>
                     <p className="mt-2 text-sm leading-6 text-amber-50/72">
-                      Shared by {communityLead.username} with {communityLead.likes} likes.
+                      Shared by {communityLead.username} and already at {communityLead.likes} likes.
                     </p>
                     <p className="mt-2 text-xs uppercase tracking-[0.18em] text-amber-200/68">
                       {communityLead.prompt_category}
@@ -510,16 +506,15 @@ export default async function HomePage() {
               Start free. Upgrade only when the output is already working.
             </h2>
             <p className="max-w-xl text-base leading-7 text-muted-foreground">
-              The free plan is enough to test the product honestly. Pro is there to remove friction once you know you
-              want cleaner, faster, watermark-free results.
+              Free is enough to test the workflow. Pro is there once you want cleaner, faster, watermark-free exports.
             </p>
           </div>
 
           <div className="space-y-3">
             {[
-              "Free credits let people try the core workflow before paying.",
-              "Pro keeps the pitch simple: HD quality, no ads, no watermark.",
-              "The upgrade decision is about finish quality, not feature confusion.",
+              "Free credits let you test the workflow first.",
+              "Pro removes ads, watermarks, and export friction.",
+              "Upgrade when quality and frequency matter.",
             ].map((item) => (
               <div key={item} className="flex gap-3 rounded-[1.25rem] border border-border/55 bg-background/60 p-3">
                 <div className="rounded-full bg-primary/12 p-2 text-primary">
@@ -534,22 +529,20 @@ export default async function HomePage() {
             <div className="rounded-[1.35rem] border border-border/55 bg-background/60 p-4">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Try first</p>
               <p className="mt-2 text-lg font-semibold text-foreground">{freeDailyCredits || 2} daily free credits</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">Enough to validate the workflow before paying.</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Enough to test before paying.</p>
             </div>
             <div className="rounded-[1.35rem] border border-border/55 bg-background/60 p-4">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Occasional use</p>
               <p className="mt-2 text-lg font-semibold text-foreground">
                 {bestCreditPack ? bestCreditPack.label : "Flexible credit packs"}
               </p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Buy credits only when you need them instead of forcing a subscription.
-              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Buy credits only when you need them.</p>
             </div>
             <div className="rounded-[1.35rem] border border-border/55 bg-background/60 p-4">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Frequent use</p>
               <p className="mt-2 text-lg font-semibold text-foreground">{PRICING.pro.price} for cleaner output</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Pro stays simple: watermark-free, ad-free, higher-quality exports.
+                Watermark-free, ad-free, higher-quality exports.
               </p>
             </div>
           </div>
@@ -602,7 +595,7 @@ export default async function HomePage() {
               Start with one portrait. Keep the workflow if the result hits.
             </h2>
             <p className="text-base leading-7 text-muted-foreground">
-              The homepage should sell confidence. The product still has to earn the upgrade with the first output.
+              Try one portrait. Keep going if the first result is worth it.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

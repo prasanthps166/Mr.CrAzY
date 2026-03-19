@@ -177,6 +177,37 @@ describe("getPrompts fallback search behavior", () => {
 
     expect(results.map((item) => item.id)).toEqual(["match"]);
   });
+
+  it("keeps explicit tag filter matches when the RPC path is unavailable", async () => {
+    const rows = [
+      prompt({ id: "popular", title: "Clean Headshot", category: "Portrait", use_count: 500 }),
+      prompt({
+        id: "match",
+        title: "Moody Portrait",
+        category: "Portrait",
+        tags: ["cinematic"],
+        use_count: 5,
+      }),
+    ];
+
+    const fakeSupabase = {
+      rpc: vi.fn().mockRejectedValue(new Error("rpc unavailable")),
+      from: vi.fn((table: string) => {
+        if (table !== "prompts") {
+          throw new Error(`Unexpected table ${table}`);
+        }
+
+        return {
+          select: vi.fn(() => new FakePromptQuery(rows)),
+        };
+      }),
+    };
+
+    const { getPrompts } = await importDataModuleWithSupabase(fakeSupabase);
+    const results = await getPrompts({ tag: "cinematic", limit: 1, sort: "trending" });
+
+    expect(results.map((item) => item.id)).toEqual(["match"]);
+  });
 });
 
 describe("ensureUserProfile sync behavior", () => {

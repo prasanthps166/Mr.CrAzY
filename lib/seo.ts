@@ -4,7 +4,7 @@ const DEFAULT_APP_URL = "http://localhost:3000";
 
 export const SITE_NAME = "PromptGallery";
 export const SITE_DESCRIPTION =
-  "AI-powered image transformation with curated prompts, community showcases, and creator marketplace.";
+  "Creator-built prompt looks for portraits, avatars, and posters with gallery proof, community results, and one-upload generation.";
 
 type BuildMetadataInput = {
   title: string;

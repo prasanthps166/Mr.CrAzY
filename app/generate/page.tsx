@@ -10,11 +10,11 @@ import { getPromptById, getPrompts } from "@/lib/data";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Generate AI Images",
+  title: "Generate From A Prompt Look",
   description:
-    "Upload your photo, choose a prompt, and generate AI-transformed images with adjustable style strength.",
+    "Upload one photo, choose a creator-built prompt look, and generate a finished result with adjustable style strength.",
   path: "/generate",
-  keywords: ["generate AI image", "img2img", "photo transformer", "AI photo editor"],
+  keywords: ["prompt-based generation", "photo look generator", "creator-built prompts", "image transformation"],
 });
 
 const GenerateModal = dynamic(
@@ -32,15 +32,15 @@ const GenerateModal = dynamic(
 const setupSteps = [
   {
     title: "Pick the look",
-    description: "Start from a prompt that already feels close to the result you want instead of guessing from scratch.",
+    description: "Choose a prompt that already feels close to the result you want.",
   },
   {
     title: "Upload one portrait",
-    description: "Use a clear image with a visible face so the style has enough signal to transform well.",
+    description: "Use a clear photo with one visible face.",
   },
   {
     title: "Tune and generate",
-    description: "Adjust strength in the modal, generate once, then keep or retry based on the first output.",
+    description: "Adjust strength, run once, then keep or retry.",
   },
 ] as const;
 
@@ -122,8 +122,7 @@ export default async function GeneratePage({ searchParams }: GeneratePageProps) 
                 Upload one photo and turn it into a finished look.
               </h2>
               <p className="text-sm leading-7 text-muted-foreground">
-                Pick the prompt that already feels right, then use the generator modal to upload, tune strength, and
-                export the first version fast.
+                Pick a prompt, upload a photo, and get a finished version fast.
               </p>
             </div>
 
@@ -198,8 +197,7 @@ export default async function GeneratePage({ searchParams }: GeneratePageProps) 
             Start from a look that already matches your taste.
           </h2>
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
-            The easiest way to get a strong first generation is to choose a style whose example image already feels
-            close to your goal.
+            The best first result usually starts with a preview that already matches your taste.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -213,8 +211,7 @@ export default async function GeneratePage({ searchParams }: GeneratePageProps) 
           <div className="mt-6 rounded-[1.5rem] border border-border/60 bg-background/70 p-5">
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Need more context?</p>
             <p className="mt-2 text-sm leading-6 text-foreground">
-              Open the prompt detail page if you want to inspect the full prompt text, tags, community results, and
-              related styles before you generate.
+              Open the detail page to see the full prompt, tags, related looks, and community results.
             </p>
             <div className="mt-4">
               <Button variant="outline" asChild>

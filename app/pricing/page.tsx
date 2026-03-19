@@ -233,11 +233,10 @@ export default function PricingPage() {
             <div className="space-y-3">
               <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Pricing</p>
               <h1 className="max-w-3xl font-display text-4xl font-semibold leading-none tracking-[-0.04em] sm:text-5xl">
-                Pay only when the first result already feels worth keeping.
+                Start free. Pay when the results are worth keeping.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-                Free proves the workflow. Credit packs keep it flexible. Pro removes friction once you are generating
-                often enough that clean exports and no ads matter more than the trial.
+                Use free credits to test the workflow. Buy packs for occasional use. Go Pro for clean, frequent exports.
               </p>
             </div>
 
@@ -267,7 +266,7 @@ export default function PricingPage() {
               {
                 label: "Try first",
                 value: `${FREE_DAILY_CREDITS} free credits`,
-                detail: "Per day, before you spend anything.",
+                detail: "Per day, before you pay.",
                 icon: Sparkles,
               },
               {
@@ -280,7 +279,7 @@ export default function PricingPage() {
                 label: "Pro break-even",
                 value: PRO_BREAK_EVEN_CREDITS ? `~${PRO_BREAK_EVEN_CREDITS} runs / month` : PRICING.pro.price,
                 detail: PRO_BREAK_EVEN_CREDITS
-                  ? "After that, Pro costs less than the cheapest credit-pack rate."
+                  ? "Past that, Pro beats the best pack rate."
                   : "Pro is there once frequent use becomes the norm.",
                 icon: ShieldCheck,
               },
@@ -318,8 +317,7 @@ export default function PricingPage() {
               </p>
             ))}
             <div className="rounded-[1.25rem] border border-border/60 bg-background/65 p-4 text-sm leading-6 text-muted-foreground">
-              Use Free if you want to test one or two looks, confirm the output style, and only then decide whether the
-              product is worth paying for.
+              Use Free to test a few looks before you pay.
             </div>
             <Button className="w-full" variant="outline" asChild>
               <Link href="/generate">Start Free</Link>
@@ -346,7 +344,7 @@ export default function PricingPage() {
             ))}
             <div className="rounded-[1.25rem] border border-primary/20 bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
               {PRO_BREAK_EVEN_CREDITS
-                ? `If you expect roughly ${PRO_BREAK_EVEN_CREDITS} or more generations a month, Pro is already cheaper than sticking to the best-value credit pack.`
+                ? `At roughly ${PRO_BREAK_EVEN_CREDITS} runs a month, Pro already beats the best pack rate.`
                 : "Choose Pro once you care more about speed, clean exports, and repeat use than one-off flexibility."}
             </div>
             <Button className="w-full" onClick={() => checkout("pro_monthly")} disabled={loadingPlan === "pro_monthly"}>
@@ -362,8 +360,7 @@ export default function PricingPage() {
           <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Credit Packs</p>
           <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em]">Top up only when you need flexibility.</h2>
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Credit packs are the honest choice for occasional use. They make more sense than Pro if you are still
-            testing styles or only generate once in a while.
+            Best if you generate occasionally and want predictable top-ups.
           </p>
         </div>
 
@@ -382,7 +379,7 @@ export default function PricingPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-[1.2rem] border border-border/60 bg-background/65 p-4 text-sm leading-6 text-muted-foreground">
-                  Good if you want predictable one-off top-ups without committing to a monthly plan.
+                  Best for occasional use without a subscription.
                 </div>
                 <Button
                   className="w-full"
@@ -404,20 +401,20 @@ export default function PricingPage() {
           {
             label: "Use Free",
             title: "Validate the first result",
-            description: `Start here if you are still asking whether ${FREE_DAILY_CREDITS} free credits are enough to prove the product is working for your photos.`,
+            description: `Use the ${FREE_DAILY_CREDITS} free credits to prove the workflow on your own photos.`,
           },
           {
             label: "Use Credits",
             title: "Stay flexible",
             description: BEST_VALUE_PACK
-              ? `${BEST_VALUE_PACK.label} gets the cost down to ${formatCurrency(BEST_VALUE_PACK.pricePerCredit, 2)} per credit and keeps you out of a subscription.`
+              ? `${BEST_VALUE_PACK.label} keeps the per-credit cost low without locking you into a subscription.`
               : "Top up only when you know you need another batch of generations.",
           },
           {
             label: "Use Pro",
             title: "Remove the final friction",
             description: PRO_BREAK_EVEN_CREDITS
-              ? `Pick Pro when watermark-free exports matter and you expect around ${PRO_BREAK_EVEN_CREDITS} or more generations in a month.`
+              ? `Choose Pro when clean exports matter and you expect about ${PRO_BREAK_EVEN_CREDITS}+ generations a month.`
               : "Pick Pro when clean exports, no ads, and repeat use matter more than occasional flexibility.",
           },
         ].map((item) => (

@@ -39,7 +39,7 @@ export function Navbar() {
             <div className="flex flex-col">
               <span>PromptGallery</span>
               <span className="hidden text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground lg:block">
-                Curated AI Portraits
+                Creator-Built Prompt Looks
               </span>
             </div>
           </Link>

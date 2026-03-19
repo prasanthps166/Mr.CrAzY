@@ -6,7 +6,7 @@ export function Footer() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
           <p className="font-medium text-foreground">PromptGallery</p>
-          <p>Curated AI-powered photo transformations for portraits, avatars, and cinematic edits.</p>
+          <p>Creator-built prompt looks for portraits, avatars, posters, and other polished photo transforms.</p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <Link href="/gallery" className="hover:text-foreground">

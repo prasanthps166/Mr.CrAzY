@@ -121,8 +121,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
                 See what the prompts look like in real hands.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Browse public transformations, follow creators whose style works, and judge the prompts by actual
-                output instead of marketing copy.
+                Browse public posts, follow creators, and judge prompts by real output.
               </p>
             </div>
           </div>
@@ -157,7 +156,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
           <p className="mt-3 text-sm leading-6 text-amber-50/72">
             {topWeekLead
               ? `${topWeekLead.username} is currently leading the week with ${topWeekLead.likes} likes.`
-              : "The strongest community posts rise quickly when the prompt, photo, and final finish actually work together."}
+              : "See which prompt and photo combinations are landing this week."}
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-amber-100/82">
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
@@ -187,7 +186,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Filter The Feed</p>
-              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Browse with more signal.</h2>
+              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Filter the feed fast.</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant={scope === "all" ? "default" : "outline"} size="sm" className="rounded-full" asChild>
@@ -261,9 +260,9 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
 
       {followingOnly && !viewerUserId ? (
         <div className="rounded-[1.75rem] border border-dashed border-border/70 p-6 text-sm text-muted-foreground">
-          Follow creators to view your personalized feed.{" "}
+          Login to see the creators you follow.{" "}
           <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
-            Login to continue
+            Continue
           </Link>
           .
         </div>
@@ -279,7 +278,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
               </p>
               <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Most liked right now</h2>
             </div>
-            <p className="text-sm text-muted-foreground">A quick pulse check on what is resonating in the feed.</p>
+            <p className="text-sm text-muted-foreground">What is landing this week.</p>
           </div>
           <CommunityGrid posts={weekTopPage.posts} />
         </section>

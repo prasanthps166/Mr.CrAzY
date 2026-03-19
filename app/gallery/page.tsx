@@ -133,7 +133,7 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
                 Find a prompt that already looks finished.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Start from styles that already have a point of view instead of guessing your way through prompt text.
+                Start from styles with a clear visual point of view instead of writing prompt text from scratch.
               </p>
             </div>
           </div>
@@ -163,7 +163,7 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
           </h2>
           <p className="mt-3 text-sm leading-6 text-amber-50/72">
             {leadPrompt?.description ??
-              "Browse the strongest portrait, avatar, and cinematic edits without digging through low-signal results."}
+              "Browse strong portrait, avatar, and cinematic looks without wading through filler."}
           </p>
           {leadPrompt ? (
             <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-amber-100/82">
@@ -195,11 +195,11 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
                 Refine Your Search
               </p>
-              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Browse with more intent.</h2>
+              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Narrow the gallery fast.</h2>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/75 px-4 py-2 text-sm text-muted-foreground">
               <SlidersHorizontal className="h-4 w-4 text-primary" />
-              Filter by category, search, tag, or sort
+              Filter by category, search, tag, and sort
             </div>
           </div>
 
@@ -302,7 +302,7 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
       {shouldLoadRecommendations ? (
         <RecommendedPromptsSection
           title="For You"
-          description="Once you have activity, the gallery can surface prompts that fit your taste faster."
+          description="Sign in to surface prompts closer to what you already save and generate."
           limit={6}
           className="space-y-4"
         />
@@ -313,7 +313,7 @@ export default async function GalleryPage({ searchParams }: GalleryPageProps) {
           <div>
             <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Results</p>
             <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">
-              {hasActiveFilters ? "Filtered prompt matches" : "All signature looks"}
+              {hasActiveFilters ? "Matching prompts" : "Curated prompt library"}
             </h2>
           </div>
           <p className="text-sm text-muted-foreground">

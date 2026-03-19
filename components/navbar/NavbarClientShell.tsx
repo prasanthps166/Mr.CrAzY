@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, LogOut, Menu, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
 
@@ -28,11 +28,13 @@ export function NavbarClientShell() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [credits, setCredits] = useState<CreditState>({
     credits: null,
     isPro: false,
   });
+  const workspaceMenuRef = useRef<HTMLDivElement | null>(null);
 
   const supabase = useMemo(() => {
     try {
@@ -99,6 +101,25 @@ export function NavbarClientShell() {
     };
   }, [supabase]);
 
+  useEffect(() => {
+    setWorkspaceOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!workspaceOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!workspaceMenuRef.current?.contains(event.target as Node)) {
+        setWorkspaceOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [workspaceOpen]);
+
   async function refreshCredits(token: string) {
     const response = await fetch("/api/credits", {
       headers: {
@@ -128,24 +149,59 @@ export function NavbarClientShell() {
   }
 
   const desktopWorkspaceLinks = user ? [...workspaceNavItems, { href: "/admin", label: "Admin" }] : [];
+  const activeWorkspaceLink = desktopWorkspaceLinks.find((item) => isActiveRoute(pathname, item.href));
+  const workspaceMenuLabel = activeWorkspaceLink?.label ?? "Workspace";
 
   return (
     <>
       <div className="hidden items-center gap-2 md:flex">
         {user ? (
-          <div className="flex items-center gap-4">
-            {desktopWorkspaceLinks.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`text-sm font-medium transition-colors ${
-                  isActiveRoute(pathname, item.href) ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-                aria-current={isActiveRoute(pathname, item.href) ? "page" : undefined}
+          <div ref={workspaceMenuRef} className="relative">
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2 px-3.5"
+              onClick={() => setWorkspaceOpen((open) => !open)}
+              aria-expanded={workspaceOpen}
+              aria-haspopup="menu"
+              aria-controls="desktop-workspace-menu"
+            >
+              {workspaceMenuLabel}
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+            {workspaceOpen ? (
+              <div
+                id="desktop-workspace-menu"
+                role="menu"
+                className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 rounded-2xl border border-border/70 bg-popover p-1.5 text-popover-foreground shadow-lg"
               >
-                {item.label}
-              </Link>
-            ))}
+                <p className="px-3 py-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Workspace
+                </p>
+                {desktopWorkspaceLinks.map((item) => {
+                  const active = isActiveRoute(pathname, item.href);
+                  const showSeparator = item.href === "/admin";
+
+                  return (
+                    <div key={item.href}>
+                      {showSeparator ? <div className="my-1 h-px bg-border/70" /> : null}
+                      <Link
+                        href={item.href}
+                        onClick={() => setWorkspaceOpen(false)}
+                        className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
+                          active ? "bg-accent text-foreground" : "text-foreground hover:bg-accent"
+                        }`}
+                        aria-current={active ? "page" : undefined}
+                        role="menuitem"
+                      >
+                        <span>{item.label}</span>
+                        {active ? <Check className="h-4 w-4 text-primary" /> : null}
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
