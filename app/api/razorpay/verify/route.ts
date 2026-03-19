@@ -43,8 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Invalid plan" }, { status: 400 });
   }
 
-  await ensureUserProfile(authUser);
-  const profile = await getUserProfileById(authUser.id);
+  const profile = (await ensureUserProfile(authUser)) ?? (await getUserProfileById(authUser.id));
   if (!profile) {
     return NextResponse.json({ message: "User profile not found" }, { status: 404 });
   }

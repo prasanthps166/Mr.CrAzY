@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArrowRight, Compass, Flame, Search } from "lucide-react";
 
 import { AdBanner } from "@/components/AdBanner";
 import { CommunityGrid } from "@/components/CommunityGrid";
@@ -19,6 +20,9 @@ export const metadata: Metadata = buildMetadata({
   keywords: ["AI community", "user creations", "AI art feed", "promptgallery community"],
 });
 
+const TOP_WEEK_LIMIT = 4;
+const FEED_PAGE_SIZE = 12;
+
 type CommunityPageProps = {
   searchParams: {
     category?: string;
@@ -33,6 +37,7 @@ function parseCategory(value: string | undefined) {
   if (!normalized) return "All";
   return (PROMPT_CATEGORIES as readonly string[]).includes(normalized) ? normalized : "All";
 }
+
 function categoryHref(
   category: string,
   scope: "all" | "following",
@@ -68,84 +73,194 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
   const scope = searchParams.scope === "following" ? "following" : "all";
   const search = searchParams.search?.trim() ?? "";
   const sort = searchParams.sort === "most_liked" ? "most_liked" : "latest";
-  const viewerUserId = await getViewerUserId();
   const followingOnly = scope === "following";
+  const viewerUserId = followingOnly ? await getViewerUserId() : null;
   const canRequestFeed = !(followingOnly && !viewerUserId);
+  const showTopWeek = scope === "all" && category === "All" && !search && sort === "latest";
+  const hasActiveFilters = category !== "All" || scope !== "all" || Boolean(search) || sort !== "latest";
 
+  const emptyPage = { posts: [], hasMore: false, nextOffset: 0 };
   const [weekTopPage, feedPage] = canRequestFeed
     ? await Promise.all([
-        getCommunityFeedPage({
-          category,
-          scope,
-          viewerUserId,
-          sort: "top_week",
-          search,
-          limit: 6,
-          offset: 0,
-        }),
+        showTopWeek
+          ? getCommunityFeedPage({
+              category,
+              scope,
+              viewerUserId,
+              sort: "top_week",
+              search,
+              limit: TOP_WEEK_LIMIT,
+              offset: 0,
+            })
+          : Promise.resolve(emptyPage),
         getCommunityFeedPage({
           category,
           scope,
           viewerUserId,
           sort: sort === "most_liked" ? "most_liked" : "recent",
           search,
-          limit: 24,
+          limit: FEED_PAGE_SIZE,
           offset: 0,
         }),
       ])
-    : [
-        { posts: [], hasMore: false, nextOffset: 0 },
-        { posts: [], hasMore: false, nextOffset: 0 },
-      ];
+    : [emptyPage, emptyPage];
+
+  const topWeekLead = weekTopPage.posts[0] ?? null;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-10">
-      <div className="mb-8 space-y-2">
-        <h1 className="font-display text-4xl font-bold tracking-tight">Community</h1>
-        <p className="text-muted-foreground">
-          Explore public generations, save inspiration, and like your favorites.
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:gap-10">
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,0.96fr)_minmax(320px,0.74fr)]">
+        <div className="rounded-[2rem] border border-border/60 bg-card/72 px-5 py-6 sm:px-7 sm:py-7">
+          <div className="space-y-4">
+            <p className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/75 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+              <Compass className="h-3.5 w-3.5 text-primary" />
+              Community Feed
+            </p>
+            <div className="space-y-3">
+              <h1 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em] sm:text-5xl">
+                See what the prompts look like in real hands.
+              </h1>
+              <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+                Browse public transformations, follow creators whose style works, and judge the prompts by actual
+                output instead of marketing copy.
+              </p>
+            </div>
+          </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Button variant={scope === "all" ? "default" : "outline"} size="sm" asChild>
-          <Link href={scopeHref("all", category, search, sort)}>Everyone</Link>
-        </Button>
-        <Button variant={scope === "following" ? "default" : "outline"} size="sm" asChild>
-          <Link href={scopeHref("following", category, search, sort)}>Following</Link>
-        </Button>
-      </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[1.4rem] border border-border/60 bg-background/70 p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Scope</p>
+              <p className="mt-2 text-lg font-semibold capitalize text-foreground">
+                {scope === "following" ? "Following feed" : "Everyone"}
+              </p>
+            </div>
+            <div className="rounded-[1.4rem] border border-border/60 bg-background/70 p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Category</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
+                {category === "All" ? "All categories" : category}
+              </p>
+            </div>
+            <div className="rounded-[1.4rem] border border-border/60 bg-background/70 p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Sort</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
+                {sort === "most_liked" ? "Most liked" : "Latest first"}
+              </p>
+            </div>
+          </div>
+        </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {PROMPT_CATEGORIES.map((item) => (
-          <Button key={item} variant={item === category ? "default" : "outline"} size="sm" asChild>
-            <Link href={categoryHref(item, scope, search, sort)}>{item}</Link>
-          </Button>
-        ))}
-      </div>
+        <div className="rounded-[2rem] border border-[#3d2918]/20 bg-[#21160d] px-5 py-6 text-amber-50 sm:px-6">
+          <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-amber-200/70">Most liked this week</p>
+          <h2 className="mt-3 font-display text-3xl font-semibold leading-tight">
+            {topWeekLead?.prompt_title ?? "See which transformations are actually landing"}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-amber-50/72">
+            {topWeekLead
+              ? `${topWeekLead.username} is currently leading the week with ${topWeekLead.likes} likes.`
+              : "The strongest community posts rise quickly when the prompt, photo, and final finish actually work together."}
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-amber-100/82">
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              {scope === "following" ? "Personalized feed" : "Public feed"}
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              {sort === "most_liked" ? "Popularity mode" : "Fresh posts first"}
+            </span>
+          </div>
+          <div className="mt-6">
+            <Button
+              variant="outline"
+              className="border-white/15 bg-transparent text-amber-50 hover:bg-white/10 hover:text-amber-50"
+              asChild
+            >
+              <Link href="/generate">
+                Make your own post
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
 
-      <form method="get" className="mb-6 grid gap-3 lg:grid-cols-[1fr_auto_auto]">
-        <Input
-          name="search"
-          defaultValue={search}
-          placeholder="Search prompt title, creator, category"
-        />
-        <input type="hidden" name="category" value={category} />
-        <input type="hidden" name="scope" value={scope} />
-        <select
-          name="sort"
-          defaultValue={sort}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          aria-label="Sort feed"
-        >
-          <option value="latest">Latest</option>
-          <option value="most_liked">Most Liked</option>
-        </select>
-        <Button type="submit">Apply</Button>
-      </form>
+      <section className="rounded-[2rem] border border-border/60 bg-card/72 p-5 sm:p-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Filter The Feed</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Browse with more signal.</h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant={scope === "all" ? "default" : "outline"} size="sm" className="rounded-full" asChild>
+                <Link href={scopeHref("all", category, search, sort)}>Everyone</Link>
+              </Button>
+              <Button
+                variant={scope === "following" ? "default" : "outline"}
+                size="sm"
+                className="rounded-full"
+                asChild
+              >
+                <Link href={scopeHref("following", category, search, sort)}>Following</Link>
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {PROMPT_CATEGORIES.map((item) => (
+              <Button
+                key={item}
+                variant={item === category ? "default" : "outline"}
+                size="sm"
+                className="rounded-full"
+                asChild
+              >
+                <Link href={categoryHref(item, scope, search, sort)}>{item}</Link>
+              </Button>
+            ))}
+          </div>
+
+          <form method="get" className="grid gap-3 lg:grid-cols-[1fr_180px_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                name="search"
+                defaultValue={search}
+                placeholder="Search prompt title, creator, category"
+                className="h-11 rounded-full pl-10"
+              />
+            </div>
+            <input type="hidden" name="category" value={category} />
+            <input type="hidden" name="scope" value={scope} />
+            <select
+              name="sort"
+              defaultValue={sort}
+              className="h-11 rounded-full border border-input bg-background/85 px-4 text-sm"
+              aria-label="Sort feed"
+            >
+              <option value="latest">Latest</option>
+              <option value="most_liked">Most Liked</option>
+            </select>
+            <Button type="submit" className="h-11 rounded-full px-6">
+              Apply Filters
+            </Button>
+          </form>
+
+          {hasActiveFilters ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-[1.4rem] border border-border/60 bg-background/65 p-3 text-xs text-muted-foreground">
+              <span className="font-medium uppercase tracking-[0.16em] text-foreground">Active</span>
+              {scope !== "all" ? <span>Scope: Following</span> : null}
+              {category !== "All" ? <span>Category: {category}</span> : null}
+              {search ? <span>{`Search: "${search}"`}</span> : null}
+              {sort !== "latest" ? <span>Sort: Most liked</span> : null}
+              <Button size="sm" variant="ghost" className="h-7 rounded-full px-3" asChild>
+                <Link href="/community">Clear all</Link>
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       {followingOnly && !viewerUserId ? (
-        <div className="mb-10 rounded-lg border border-dashed border-border/70 p-6 text-sm text-muted-foreground">
+        <div className="rounded-[1.75rem] border border-dashed border-border/70 p-6 text-sm text-muted-foreground">
           Follow creators to view your personalized feed.{" "}
           <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
             Login to continue
@@ -154,12 +269,21 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
         </div>
       ) : null}
 
-      <section className="mb-10 space-y-4">
-        <h2 className="font-display text-2xl font-semibold">
-          {scope === "following" ? "Most Liked This Week (Following)" : "Most Liked This Week"}
-        </h2>
-        <CommunityGrid posts={weekTopPage.posts} />
-      </section>
+      {showTopWeek ? (
+        <section className="space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                <Flame className="h-3.5 w-3.5 text-primary" />
+                This Week
+              </p>
+              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Most liked right now</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">A quick pulse check on what is resonating in the feed.</p>
+          </div>
+          <CommunityGrid posts={weekTopPage.posts} />
+        </section>
+      ) : null}
 
       <CommunityFeedSection
         title={scope === "following" ? "Latest From Creators You Follow" : "Latest Posts"}
@@ -173,9 +297,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
         canRequestMore={canRequestFeed}
       />
 
-      <div className="mt-8">
-        <AdBanner placement="community_bottom" className="w-full" />
-      </div>
+      <AdBanner placement="community_bottom" className="w-full" />
     </div>
   );
 }

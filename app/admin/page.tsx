@@ -40,10 +40,13 @@ export default async function AdminPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   if (!user?.email || user.email.toLowerCase() !== adminEmail) {
     redirect("/");
   }
 
-  return <AdminDashboardClient userEmail={user.email} />;
+  return <AdminDashboardClient userEmail={user.email} initialAccessToken={session?.access_token ?? null} />;
 }

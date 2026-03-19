@@ -71,3 +71,24 @@ export function logError(event: string, error: unknown, metadata: LogMetadata = 
     ...toErrorPayload(error),
   });
 }
+
+export function createRouteTimer(eventBase: string, metadata: LogMetadata = {}) {
+  const startedAt = Date.now();
+
+  function withDuration(extra: LogMetadata = {}) {
+    return {
+      ...metadata,
+      ...extra,
+      duration_ms: Date.now() - startedAt,
+    };
+  }
+
+  return {
+    finish(extra: LogMetadata = {}) {
+      logInfo(`${eventBase}.request_completed`, withDuration(extra));
+    },
+    fail(error: unknown, extra: LogMetadata = {}) {
+      logError(`${eventBase}.request_failed`, error, withDuration(extra));
+    },
+  };
+}

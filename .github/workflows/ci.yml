@@ -40,6 +40,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build bundle budgets
+        run: npm run check:build-budgets
+
   mobile:
     name: Mobile Typecheck
     runs-on: ubuntu-latest

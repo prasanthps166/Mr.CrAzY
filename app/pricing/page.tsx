@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Loader2 } from "lucide-react";
+import { ArrowRight, Check, Loader2, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,52 @@ declare global {
     Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
   }
 }
+
+type CreditPackWithMath = (typeof PRICING.credits)[number] & {
+  priceValue: number;
+  pricePerCredit: number;
+};
+
+function parsePriceValue(value: string) {
+  const numeric = Number(value.replace(/[^\d.]/g, ""));
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function parseFirstInteger(value: string) {
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : 0;
+}
+
+function formatCurrency(value: number, maximumFractionDigits = 0) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: maximumFractionDigits,
+    maximumFractionDigits,
+  }).format(value);
+}
+
+const FREE_DAILY_CREDITS =
+  parseFirstInteger(PRICING.free.features.find((feature) => feature.toLowerCase().includes("daily free credits")) ?? "") ||
+  2;
+
+const CREDIT_PACKS: CreditPackWithMath[] = PRICING.credits.map((pack) => {
+  const priceValue = parsePriceValue(pack.price);
+  return {
+    ...pack,
+    priceValue,
+    pricePerCredit: priceValue / pack.credits,
+  };
+});
+
+const BEST_VALUE_PACK = CREDIT_PACKS.reduce<CreditPackWithMath | null>((best, pack) => {
+  if (!best) return pack;
+  return pack.pricePerCredit < best.pricePerCredit ? pack : best;
+}, null);
+
+const PRO_MONTHLY_PRICE = parsePriceValue(PRICING.pro.price);
+const PRO_DAILY_PRICE = PRO_MONTHLY_PRICE / 30;
+const PRO_BREAK_EVEN_CREDITS = BEST_VALUE_PACK ? Math.ceil(PRO_MONTHLY_PRICE / BEST_VALUE_PACK.pricePerCredit) : null;
 
 async function ensureRazorpayScriptLoaded() {
   if (typeof window === "undefined") return false;
@@ -179,67 +226,164 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10">
-      <div className="mb-10 space-y-2">
-        <h1 className="font-display text-4xl font-bold tracking-tight">Pricing</h1>
-        <p className="text-muted-foreground">Choose Pro or top up credits as needed.</p>
-        <p className="text-xs text-muted-foreground">
-          {isStripeBilling
-            ? "Legacy Stripe mode is enabled in this environment."
-            : "Ads-first mode is active. Razorpay falls back to mock grants when keys are not configured."}
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 sm:gap-10">
+      <section className="overflow-hidden rounded-[2.25rem] border border-border/60 bg-[linear-gradient(135deg,rgba(199,102,43,0.12),rgba(255,247,239,0.94)_48%,rgba(255,221,193,0.45))] px-5 py-7 shadow-[0_30px_80px_-48px_rgba(72,42,18,0.42)] sm:px-7 sm:py-8">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Pricing</p>
+              <h1 className="max-w-3xl font-display text-4xl font-semibold leading-none tracking-[-0.04em] sm:text-5xl">
+                Pay only when the first result already feels worth keeping.
+              </h1>
+              <p className="max-w-2xl text-base leading-7 text-muted-foreground">
+                Free proves the workflow. Credit packs keep it flexible. Pro removes friction once you are generating
+                often enough that clean exports and no ads matter more than the trial.
+              </p>
+            </div>
 
-      <div className="mb-8 grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/60 bg-card/70">
-          <CardHeader>
-            <CardTitle className="font-display text-2xl">{PRICING.free.name}</CardTitle>
-            <p className="text-3xl font-bold">{PRICING.free.price}</p>
-            <p className="text-sm text-muted-foreground">{PRICING.free.description}</p>
+            <div className="flex flex-wrap gap-3">
+              <Button size="lg" asChild>
+                <Link href="/generate">
+                  Test The Workflow
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link href="/gallery">See Proven Styles</Link>
+              </Button>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-border/60 bg-background/70 p-4">
+              <p className="text-xs leading-6 text-muted-foreground">
+                {isStripeBilling
+                  ? "Legacy Stripe mode is enabled in this environment."
+                  : "Ads-first mode is active. Razorpay falls back to mock grants when keys are not configured."}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              {
+                label: "Try first",
+                value: `${FREE_DAILY_CREDITS} free credits`,
+                detail: "Per day, before you spend anything.",
+                icon: Sparkles,
+              },
+              {
+                label: "Best pack rate",
+                value: BEST_VALUE_PACK ? `${formatCurrency(BEST_VALUE_PACK.pricePerCredit, 2)} / credit` : "Top up anytime",
+                detail: BEST_VALUE_PACK ? `${BEST_VALUE_PACK.label} is the cheapest occasional-use option.` : "Buy credits only when you need them.",
+                icon: WalletCards,
+              },
+              {
+                label: "Pro break-even",
+                value: PRO_BREAK_EVEN_CREDITS ? `~${PRO_BREAK_EVEN_CREDITS} runs / month` : PRICING.pro.price,
+                detail: PRO_BREAK_EVEN_CREDITS
+                  ? "After that, Pro costs less than the cheapest credit-pack rate."
+                  : "Pro is there once frequent use becomes the norm.",
+                icon: ShieldCheck,
+              },
+            ].map((signal) => {
+              const Icon = signal.icon;
+
+              return (
+                <div key={signal.label} className="rounded-[1.5rem] border border-border/60 bg-background/78 p-4">
+                  <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <Icon className="h-3.5 w-3.5 text-primary" />
+                    <span>{signal.label}</span>
+                  </div>
+                  <p className="mt-3 text-xl font-semibold tracking-[-0.02em] text-foreground">{signal.value}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{signal.detail}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card className="rounded-[1.85rem] border-border/60 bg-card/75 shadow-[0_20px_55px_-42px_rgba(42,29,18,0.42)]">
+          <CardHeader className="space-y-3">
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Best for first runs</p>
+            <CardTitle className="font-display text-3xl">{PRICING.free.name}</CardTitle>
+            <p className="text-4xl font-semibold tracking-[-0.03em]">{PRICING.free.price}</p>
+            <p className="text-sm leading-6 text-muted-foreground">{PRICING.free.description}</p>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             {PRICING.free.features.map((feature) => (
-              <p key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
+              <p key={feature} className="flex items-center gap-2 text-sm text-foreground">
                 <Check className="h-4 w-4 text-primary" />
                 {feature}
               </p>
             ))}
+            <div className="rounded-[1.25rem] border border-border/60 bg-background/65 p-4 text-sm leading-6 text-muted-foreground">
+              Use Free if you want to test one or two looks, confirm the output style, and only then decide whether the
+              product is worth paying for.
+            </div>
+            <Button className="w-full" variant="outline" asChild>
+              <Link href="/generate">Start Free</Link>
+            </Button>
           </CardContent>
         </Card>
 
-        <Card className="border-primary/50 bg-primary/10">
-          <CardHeader>
-            <CardTitle className="font-display text-2xl">{PRICING.pro.name}</CardTitle>
-            <p className="text-3xl font-bold">{PRICING.pro.price}</p>
-            <p className="text-sm text-muted-foreground">{PRICING.pro.description}</p>
+        <Card className="rounded-[1.85rem] border-primary/40 bg-primary/10 shadow-[0_24px_60px_-42px_rgba(199,102,43,0.55)]">
+          <CardHeader className="space-y-3">
+            <p className="inline-flex w-fit rounded-full border border-primary/20 bg-primary/12 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-primary">
+              Best for frequent creation
+            </p>
+            <CardTitle className="font-display text-3xl">{PRICING.pro.name}</CardTitle>
+            <p className="text-4xl font-semibold tracking-[-0.03em]">{PRICING.pro.price}</p>
+            <p className="text-sm leading-6 text-muted-foreground">{PRICING.pro.description}</p>
+            <p className="text-sm font-medium text-foreground">{formatCurrency(PRO_DAILY_PRICE, 2)} per day if used all month.</p>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             {PRICING.pro.features.map((feature) => (
-              <p key={feature} className="flex items-center gap-2 text-sm">
+              <p key={feature} className="flex items-center gap-2 text-sm text-foreground">
                 <Check className="h-4 w-4 text-primary" />
                 {feature}
               </p>
             ))}
-            <Button onClick={() => checkout("pro_monthly")} disabled={loadingPlan === "pro_monthly"}>
-              {loadingPlan === "pro_monthly" ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
+            <div className="rounded-[1.25rem] border border-primary/20 bg-background/75 p-4 text-sm leading-6 text-muted-foreground">
+              {PRO_BREAK_EVEN_CREDITS
+                ? `If you expect roughly ${PRO_BREAK_EVEN_CREDITS} or more generations a month, Pro is already cheaper than sticking to the best-value credit pack.`
+                : "Choose Pro once you care more about speed, clean exports, and repeat use than one-off flexibility."}
+            </div>
+            <Button className="w-full" onClick={() => checkout("pro_monthly")} disabled={loadingPlan === "pro_monthly"}>
+              {loadingPlan === "pro_monthly" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Upgrade to Pro
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
       <section className="space-y-4">
-        <h2 className="font-display text-2xl font-semibold">Credit Packs</h2>
+        <div className="space-y-2">
+          <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Credit Packs</p>
+          <h2 className="font-display text-3xl font-semibold leading-none tracking-[-0.03em]">Top up only when you need flexibility.</h2>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            Credit packs are the honest choice for occasional use. They make more sense than Pro if you are still
+            testing styles or only generate once in a while.
+          </p>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-3">
-          {PRICING.credits.map((pack) => (
-            <Card key={pack.id} className="border-border/60 bg-card/70">
-              <CardHeader>
-                <CardTitle className="font-display">{pack.label}</CardTitle>
-                <p className="text-2xl font-bold">{pack.price}</p>
+          {CREDIT_PACKS.map((pack) => (
+            <Card key={pack.id} className="rounded-[1.65rem] border-border/60 bg-card/75">
+              <CardHeader className="space-y-3">
+                {BEST_VALUE_PACK?.id === pack.id ? (
+                  <p className="inline-flex w-fit rounded-full border border-primary/20 bg-primary/12 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-primary">
+                    Lowest cost per credit
+                  </p>
+                ) : null}
+                <CardTitle className="font-display text-2xl">{pack.label}</CardTitle>
+                <p className="text-3xl font-semibold tracking-[-0.03em]">{pack.price}</p>
+                <p className="text-sm leading-6 text-muted-foreground">{formatCurrency(pack.pricePerCredit, 2)} per credit.</p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                <div className="rounded-[1.2rem] border border-border/60 bg-background/65 p-4 text-sm leading-6 text-muted-foreground">
+                  Good if you want predictable one-off top-ups without committing to a monthly plan.
+                </div>
                 <Button
                   className="w-full"
                   variant="secondary"
@@ -253,6 +397,40 @@ export default function PricingPage() {
             </Card>
           ))}
         </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        {[
+          {
+            label: "Use Free",
+            title: "Validate the first result",
+            description: `Start here if you are still asking whether ${FREE_DAILY_CREDITS} free credits are enough to prove the product is working for your photos.`,
+          },
+          {
+            label: "Use Credits",
+            title: "Stay flexible",
+            description: BEST_VALUE_PACK
+              ? `${BEST_VALUE_PACK.label} gets the cost down to ${formatCurrency(BEST_VALUE_PACK.pricePerCredit, 2)} per credit and keeps you out of a subscription.`
+              : "Top up only when you know you need another batch of generations.",
+          },
+          {
+            label: "Use Pro",
+            title: "Remove the final friction",
+            description: PRO_BREAK_EVEN_CREDITS
+              ? `Pick Pro when watermark-free exports matter and you expect around ${PRO_BREAK_EVEN_CREDITS} or more generations in a month.`
+              : "Pick Pro when clean exports, no ads, and repeat use matter more than occasional flexibility.",
+          },
+        ].map((item) => (
+          <Card key={item.label} className="rounded-[1.65rem] border-border/60 bg-card/75">
+            <CardHeader className="space-y-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">{item.label}</p>
+              <CardTitle className="font-display text-2xl">{item.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm leading-6 text-muted-foreground">{item.description}</p>
+            </CardContent>
+          </Card>
+        ))}
       </section>
     </div>
   );

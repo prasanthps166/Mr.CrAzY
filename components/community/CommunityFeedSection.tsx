@@ -66,7 +66,7 @@ export function CommunityFeedSection({
     setLoadingMore(true);
 
     const params = new URLSearchParams({
-      limit: "24",
+      limit: "12",
       offset: String(nextOffset),
       category,
       scope,
@@ -122,8 +122,11 @@ export function CommunityFeedSection({
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-2xl font-semibold">{title}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.75rem] border border-border/60 bg-card/70 px-5 py-4">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Live Feed</p>
+          <h2 className="mt-2 font-display text-2xl font-semibold">{title}</h2>
+        </div>
         <div className="flex items-center gap-2">
           <p className="text-xs text-muted-foreground">Showing {posts.length} result(s)</p>
           <Button variant="outline" size="sm" onClick={downloadCsv} disabled={!posts.length}>
@@ -137,7 +140,7 @@ export function CommunityFeedSection({
 
       {canRequestMore && hasMore ? (
         <div className="flex justify-center">
-          <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
+          <Button variant="outline" className="rounded-full px-6" onClick={loadMore} disabled={loadingMore}>
             {loadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Load More
           </Button>
@@ -146,4 +149,3 @@ export function CommunityFeedSection({
     </section>
   );
 }
-

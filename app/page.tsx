@@ -1,18 +1,22 @@
+import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Check, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ShieldCheck, Sparkles, TrendingUp, WalletCards, WandSparkles } from "lucide-react";
 
 import { AdBanner } from "@/components/AdBanner";
-import { CommunityGrid } from "@/components/CommunityGrid";
+import { CommunityPreviewGrid } from "@/components/CommunityPreviewGrid";
 import { PromptCard } from "@/components/PromptCard";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FEATURED_EXAMPLES, PRICING } from "@/lib/constants";
-import { getCommunityFeed, getPrompts, getRecommendedPrompts } from "@/lib/data";
-import { getViewerUserId } from "@/lib/server-user";
+import { getCommunityFeed, getPrompts } from "@/lib/data";
 import { SITE_DESCRIPTION, SITE_NAME, absoluteUrl, buildMetadata } from "@/lib/seo";
+
+const RecommendedPromptsSection = nextDynamic(
+  () => import("@/components/RecommendedPromptsSection").then((module) => module.RecommendedPromptsSection),
+  { ssr: false },
+);
 
 export const metadata: Metadata = buildMetadata({
   title: "AI Photo Prompt Gallery",
@@ -22,14 +26,66 @@ export const metadata: Metadata = buildMetadata({
   keywords: ["AI image generator", "photo to AI art", "prompt gallery", "image transformation"],
 });
 
-export default async function HomePage() {
-  const viewerUserId = await getViewerUserId();
+export const dynamic = "force-static";
 
-  const [featuredPrompts, communityPreview, recommendedPrompts] = await Promise.all([
+const premiumPillars = [
+  {
+    title: "Curated looks",
+    description: "Start from creator-built styles with a clear point of view instead of a blank prompt box.",
+    icon: Sparkles,
+  },
+  {
+    title: "Fast workflow",
+    description: "Choose a prompt, upload once, and get a polished result without fiddly setup or extra steps.",
+    icon: WandSparkles,
+  },
+  {
+    title: "Clean finish",
+    description: "Free is enough to try it. Pro removes watermarks and keeps the final export presentation-ready.",
+    icon: ShieldCheck,
+  },
+] as const;
+
+const workflowSteps = [
+  {
+    label: "Choose a look",
+    description: "Browse styles that already work for portraits, anime avatars, festivals, and cinematic edits.",
+  },
+  {
+    label: "Upload one photo",
+    description: "Keep the workflow simple. Start from a single image and preserve the details that matter.",
+  },
+  {
+    label: "Download or share",
+    description: "Use your result immediately, or post it to the community to see how the style lands in the wild.",
+  },
+] as const;
+
+function formatCompactNumber(value: number) {
+  if (value <= 0) return "0";
+  return new Intl.NumberFormat("en-IN", {
+    notation: "compact",
+    maximumFractionDigits: value >= 1000 ? 1 : 0,
+  }).format(value);
+}
+
+function parseFirstInteger(value: string) {
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : 0;
+}
+
+function parsePriceValue(value: string) {
+  const numeric = Number(value.replace(/[^\d.]/g, ""));
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+export default async function HomePage() {
+  const [featuredPrompts, topPrompts, communityPreview] = await Promise.all([
     getPrompts({ featuredOnly: true, limit: 6, sort: "trending" }),
-    getCommunityFeed({ limit: 8 }),
-    getRecommendedPrompts({ userId: viewerUserId, limit: 6 }),
+    getPrompts({ limit: 8, sort: "most_used" }),
+    getCommunityFeed({ limit: 6 }),
   ]);
+
   const homeJsonLd = [
     {
       "@context": "https://schema.org",
@@ -57,192 +113,509 @@ export default async function HomePage() {
       },
     },
   ];
-  const gallery = featuredPrompts.length
-    ? featuredPrompts.map((item) => item.example_image_url)
-    : FEATURED_EXAMPLES;
+
+  const proofPrompts = (topPrompts.length ? topPrompts : featuredPrompts).slice(0, 6);
+  const heroPrompt = featuredPrompts[0] ?? proofPrompts[0] ?? null;
+  const spotlightPrompts = (featuredPrompts.length > 1 ? featuredPrompts : proofPrompts).slice(1, 3);
+  const signaturePrompts = proofPrompts.length ? proofPrompts : featuredPrompts.slice(0, 6);
+  const featuredCategories = Array.from(new Set(signaturePrompts.map((prompt) => prompt.category))).slice(0, 3);
+  const communityLead = [...communityPreview].sort((left, right) => right.likes - left.likes)[0] ?? null;
+  const fallbackCollage = FEATURED_EXAMPLES.slice(0, 3);
+  const totalSignatureUses = signaturePrompts.reduce((sum, prompt) => sum + prompt.use_count, 0);
+  const totalCommunityLikes = communityPreview.reduce((sum, post) => sum + post.likes, 0);
+  const freeDailyCredits = parseFirstInteger(
+    PRICING.free.features.find((feature) => feature.toLowerCase().includes("daily free credits")) ?? "",
+  );
+  const bestCreditPack = [...PRICING.credits]
+    .map((pack) => ({ ...pack, priceValue: parsePriceValue(pack.price) }))
+    .sort((left, right) => left.priceValue / left.credits - right.priceValue / right.credits)[0];
+  const proofStats = [
+    {
+      label: "Most-used looks",
+      value: `${formatCompactNumber(totalSignatureUses)}+`,
+      detail: "Runs across the strongest prompts featured on the site.",
+      icon: TrendingUp,
+    },
+    {
+      label: "Top prompt proof",
+      value: heroPrompt ? `${formatCompactNumber(heroPrompt.use_count)} uses` : "Curated",
+      detail: heroPrompt ? `${heroPrompt.title} keeps getting reused.` : "The homepage starts from proven styles.",
+      icon: Sparkles,
+    },
+    {
+      label: "Community signal",
+      value: totalCommunityLikes > 0 ? `${formatCompactNumber(totalCommunityLikes)} likes` : "Live examples",
+      detail:
+        totalCommunityLikes > 0
+          ? "Across the featured community results on the homepage."
+          : "Real outputs still sit next to the polished examples.",
+      icon: WandSparkles,
+    },
+    {
+      label: "Upgrade logic",
+      value: freeDailyCredits > 0 ? `${freeDailyCredits} free daily` : PRICING.pro.price,
+      detail: `${PRICING.pro.price} Pro only matters once clean exports or frequent runs are the blocker.`,
+      icon: WalletCards,
+    },
+  ] as const;
+  const decisionSignals = [
+    {
+      eyebrow: "Most reused prompt",
+      title: heroPrompt?.title ?? "Start from a proven look",
+      description: heroPrompt
+        ? `${heroPrompt.use_count} uses means the lead example is already doing conversion work before the upload starts.`
+        : "The homepage lead is intentionally tied to the strongest prompt proof available.",
+      href: heroPrompt ? `/gallery/${heroPrompt.id}` : "/gallery",
+      cta: "Inspect the prompt",
+    },
+    {
+      eyebrow: communityLead ? "Proof from the community" : "Real examples still matter",
+      title: communityLead ? `${communityLead.prompt_title} in real hands` : "The product needs more than a brand demo",
+      description: communityLead
+        ? `${communityLead.username} shared this result and it already has ${communityLead.likes} likes. That is stronger trust than a polished mockup.`
+        : "When the feed is sparse, the next best trust move is to keep showing the strongest real outputs, not manufactured testimonials.",
+      href: "/community",
+      cta: "Browse the community",
+    },
+    {
+      eyebrow: "Pay only when it is working",
+      title: `${freeDailyCredits || 2} daily credits before ${PRICING.pro.price} Pro`,
+      description: bestCreditPack
+        ? `${bestCreditPack.label} is there for occasional use. Pro stays easy to understand: no watermark, no ads, cleaner exports.`
+        : "The pricing path stays honest: validate the workflow first, then pay for polish or frequency.",
+      href: "/pricing",
+      cta: "Compare plans",
+    },
+  ] as const;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-4 py-12 sm:py-16">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-4 py-10 sm:gap-14 sm:py-14">
       <JsonLd id="home-jsonld" value={homeJsonLd} />
-      <section className="animate-fade-up grid items-center gap-10 lg:grid-cols-2">
-        <div className="space-y-6">
-          <p className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-xs text-muted-foreground">
-            <Sparkles className="h-3 w-3 text-primary" />
-            AI-powered prompt marketplace
-          </p>
-          <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            Transform Your Photos with AI Magic
-          </h1>
-          <p className="max-w-xl text-lg text-muted-foreground">
-            100+ AI styles. Upload your photo. Share instantly on WhatsApp.
-          </p>
+
+      <section className="animate-fade-up grid gap-10 xl:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)] xl:items-center">
+        <div className="space-y-8">
+          <div className="space-y-5">
+            <p className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/75 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Curated AI Portrait Studio
+            </p>
+
+            <div className="space-y-4">
+              <h1 className="max-w-3xl font-display text-5xl font-semibold leading-none tracking-[-0.04em] sm:text-6xl lg:text-7xl">
+                Make one good photo look art-directed.
+              </h1>
+              <p className="max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
+                Choose a creator-built style, upload once, and get a polished portrait, anime avatar, or festival
+                poster in seconds without wrestling with prompts.
+              </p>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-3">
-            <Button size="lg" asChild>
+            <Button size="lg" className="shadow-lg shadow-primary/20" asChild>
               <Link href="/generate">
-                Try Free - No Signup Needed
+                Start Free
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button size="lg" variant="secondary" asChild>
-              <Link href="/gallery">Browse Prompts</Link>
+            <Button size="lg" variant="outline" asChild>
+              <Link href="/gallery">Explore Gallery</Link>
             </Button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {proofStats.map((stat) => {
+              const Icon = stat.icon;
+
+              return (
+                <div key={stat.label} className="rounded-[1.5rem] border border-border/60 bg-card/70 p-4">
+                  <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    <Icon className="h-3.5 w-3.5 text-primary" />
+                    <span>{stat.label}</span>
+                  </div>
+                  <p className="mt-3 text-xl font-semibold tracking-[-0.02em] text-foreground">{stat.value}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{stat.detail}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/70 bg-card/40 p-3">
-          {gallery.slice(0, 6).map((imageUrl, index) => (
-            <div
-              key={`${imageUrl}-${index}`}
-              className="overflow-hidden rounded-xl border border-border/50 bg-background/40"
-            >
-              <div className="grid grid-cols-2">
-                <div className="relative aspect-[3/4]">
+        <div className="relative">
+          <div className="absolute inset-x-10 top-6 h-24 rounded-full bg-primary/15 blur-3xl" />
+          <div className="relative rounded-[2rem] border border-[#3f2a18]/15 bg-[#1f150e] p-3 text-amber-50 shadow-[0_32px_100px_-45px_rgba(69,38,14,0.8)]">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
+              <div className="relative overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#2a1c11]">
+                <div className="relative aspect-[4/5]">
                   <Image
-                    src={imageUrl}
-                    alt="Before transformation"
+                    src={heroPrompt?.example_image_url ?? fallbackCollage[0]}
+                    alt={heroPrompt?.title ?? "Featured transformation"}
                     fill
-                    className="object-cover grayscale"
-                    sizes="(max-width: 1024px) 50vw, 300px"
-                    priority={index === 0}
+                    className="object-cover"
+                    sizes="(max-width: 1280px) 100vw, 42vw"
+                    priority
                   />
-                  <span className="absolute left-2 top-2 rounded-full bg-[#2d1d10]/65 px-2 py-0.5 text-[10px] text-amber-50">
-                    Before
-                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#120d08]/90 via-[#120d081f] to-transparent" />
                 </div>
-                <div className="relative aspect-[3/4]">
-                  <Image
-                    src={imageUrl}
-                    alt="After transformation"
-                    fill
-                    className="object-cover saturate-150 contrast-110"
-                    sizes="(max-width: 1024px) 50vw, 300px"
-                    priority={index === 0}
-                  />
-                  <span className="absolute left-2 top-2 rounded-full bg-primary/90 px-2 py-0.5 text-[10px] text-primary-foreground">
-                    After
+                <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-primary px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-foreground">
+                    Editor&apos;s Pick
                   </span>
+                  {heroPrompt ? (
+                    <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-100">
+                      {heroPrompt.category}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="absolute inset-x-4 bottom-4 rounded-[1.4rem] border border-white/10 bg-black/25 p-4 backdrop-blur-sm">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-amber-200/75">Featured Style</p>
+                  <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">
+                    {heroPrompt?.title ?? "Cinematic portrait finish"}
+                  </h2>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-amber-50/78">
+                    {heroPrompt?.description ??
+                      "A polished transformation with stronger mood, cleaner lighting, and a more premium final frame."}
+                  </p>
+                  {heroPrompt ? (
+                    <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-amber-100/80">
+                      <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                        {heroPrompt.use_count} generations
+                      </span>
+                      <Link
+                        href={`/gallery/${heroPrompt.id}`}
+                        className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 hover:bg-white/10"
+                      >
+                        View prompt
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                {spotlightPrompts.map((prompt) => (
+                  <Link
+                    key={prompt.id}
+                    href={`/gallery/${prompt.id}`}
+                    className="group overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5 transition hover:border-white/20 hover:bg-white/[0.08]"
+                  >
+                    <div className="grid grid-cols-[108px_minmax(0,1fr)] items-stretch">
+                      <div className="relative min-h-[150px]">
+                        <Image
+                          src={prompt.example_image_url}
+                          alt={prompt.title}
+                          fill
+                          className="object-cover transition duration-500 group-hover:scale-105"
+                          sizes="160px"
+                        />
+                      </div>
+                      <div className="flex flex-col justify-between p-4">
+                        <div>
+                          <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-amber-200/70">
+                            {prompt.category}
+                          </p>
+                          <h3 className="mt-2 font-display text-2xl leading-tight">{prompt.title}</h3>
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-amber-50/70">{prompt.description}</p>
+                        </div>
+                        <p className="mt-3 text-xs text-amber-100/75">{prompt.use_count} uses and growing</p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-5">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-amber-200/70">
+                    Why It Feels Better
+                  </p>
+                  <div className="mt-4 space-y-4">
+                    {premiumPillars.map((item) => {
+                      const Icon = item.icon;
+
+                      return (
+                        <div key={item.title} className="flex gap-3">
+                          <div className="mt-0.5 rounded-full border border-white/10 bg-white/8 p-2">
+                            <Icon className="h-4 w-4 text-amber-100" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-amber-50">{item.title}</p>
+                            <p className="mt-1 text-sm leading-6 text-amber-50/68">{item.description}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       </section>
 
-      <section className="animate-fade-up-delay space-y-6">
-        <h2 className="font-display text-3xl font-semibold tracking-tight">How It Works</h2>
+      <section className="animate-fade-up-delay grid gap-4 md:grid-cols-3">
+        {workflowSteps.map((step, index) => (
+          <div
+            key={step.label}
+            className="rounded-[1.75rem] border border-border/60 bg-card/70 p-5 shadow-[0_18px_40px_-32px_rgba(42,29,18,0.7)]"
+          >
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              Step 0{index + 1}
+            </p>
+            <h2 className="mt-3 font-display text-2xl font-semibold leading-tight">{step.label}</h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">{step.description}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]">
+        <div className="space-y-3">
+          <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Decision Signals</p>
+          <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em]">
+            Trust comes from the product, not fake praise.
+          </h2>
+          <p className="max-w-2xl text-base leading-7 text-muted-foreground">
+            Instead of manufactured testimonials, the page now leans on what actually reduces risk: repeated prompt
+            usage, real community outputs, and pricing that explains when paying makes sense.
+          </p>
+          <div className="rounded-[1.5rem] border border-border/60 bg-card/70 p-4">
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Best known for</p>
+            <p className="mt-3 text-sm font-semibold text-foreground">
+              {featuredCategories.length ? featuredCategories.join(" / ") : "Portraits / Anime / Festival"}
+            </p>
+          </div>
+        </div>
+
         <div className="grid gap-4 md:grid-cols-3">
-          {["Browse a style", "Upload your photo", "Download your result"].map((step, index) => (
-            <Card key={step} className="border-border/60 bg-card/70">
-              <CardHeader>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Step {index + 1}</p>
-                <CardTitle className="font-display text-xl">{step}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  {index === 0 && "Explore curated prompts by category and discover trending styles."}
-                  {index === 1 &&
-                    "Drag and drop a photo, then tune strength to keep details or fully stylize."}
-                  {index === 2 &&
-                    "Get your generated image in seconds and share it with the community."}
-                </p>
-              </CardContent>
-            </Card>
+          {decisionSignals.map((signal) => (
+            <Link
+              key={signal.eyebrow}
+              href={signal.href}
+              className="group rounded-[1.75rem] border border-border/60 bg-card/75 p-5 shadow-[0_20px_55px_-40px_rgba(42,29,18,0.72)] transition hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_28px_70px_-42px_rgba(82,49,22,0.72)]"
+            >
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{signal.eyebrow}</p>
+              <h3 className="mt-3 font-display text-2xl font-semibold leading-tight">{signal.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{signal.description}</p>
+              <span className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-foreground transition-transform group-hover:translate-x-0.5">
+                {signal.cta}
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            </Link>
           ))}
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-3xl font-semibold tracking-tight">Trending Styles</h2>
+      <section className="space-y-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl space-y-2">
+            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Signature Styles</p>
+            <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em]">
+              The most reused looks on the platform right now.
+            </h2>
+            <p className="text-base leading-7 text-muted-foreground">
+              These are not filler examples. They are the looks people keep choosing because the preview and the first
+              result tend to line up.
+            </p>
+          </div>
           <Button variant="ghost" asChild>
-            <Link href="/gallery">View all</Link>
+            <Link href="/gallery">See full gallery</Link>
           </Button>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {featuredPrompts.map((prompt) => (
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {signaturePrompts.map((prompt) => (
             <PromptCard key={prompt.id} prompt={prompt} />
           ))}
         </div>
       </section>
 
-      {recommendedPrompts.length ? (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-3xl font-semibold tracking-tight">Recommended For You</h2>
-            <Button variant="ghost" asChild>
-              <Link href="/gallery">See more</Link>
-            </Button>
+      <RecommendedPromptsSection
+        title="Recommended For You"
+        description="Once you sign in, your homepage starts surfacing prompts that match your taste and history."
+        limit={4}
+        linkHref="/gallery"
+        linkLabel="See more"
+        className="space-y-4"
+      />
+
+      <section className="relative overflow-hidden rounded-[2.25rem] border border-[#3d2918]/20 bg-[#21160d] px-5 py-6 text-amber-50 sm:px-7 sm:py-8">
+        <div className="absolute left-[-10%] top-[-18%] h-40 w-40 rounded-full bg-primary/18 blur-3xl" />
+        <div className="absolute bottom-[-20%] right-[-10%] h-44 w-44 rounded-full bg-[#f6b36e]/12 blur-3xl" />
+        <div className="relative grid gap-8 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] xl:items-start">
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-amber-200/70">Community</p>
+              <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em]">
+                See how the styles hold up on real photos.
+              </h2>
+              <p className="max-w-xl text-base leading-7 text-amber-50/72">
+                The fastest way to trust an AI photo product is to see what other people actually made with it, not
+                just a polished brand demo.
+              </p>
+            </div>
+
+            {communityLead ? (
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.06] p-4">
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-amber-200/70">
+                  Popular In The Feed
+                </p>
+                <div className="mt-4 flex gap-4">
+                  <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-[1rem] border border-white/10">
+                    <Image
+                      src={communityLead.generated_image_url}
+                      alt={communityLead.prompt_title}
+                      fill
+                      className="object-cover"
+                      sizes="80px"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-display text-2xl leading-tight">{communityLead.prompt_title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-amber-50/72">
+                      Shared by {communityLead.username} with {communityLead.likes} likes.
+                    </p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.18em] text-amber-200/68">
+                      {communityLead.prompt_category}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-3">
+              <Button size="lg" variant="secondary" asChild>
+                <Link href="/community">Explore Community</Link>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-white/15 bg-transparent text-amber-50 hover:bg-white/10 hover:text-amber-50"
+                asChild
+              >
+                <Link href="/generate">Create Yours</Link>
+              </Button>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Personalized from your saved prompts, generations, and creators you follow.
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {recommendedPrompts.map((prompt) => (
-              <PromptCard key={prompt.id} prompt={prompt} />
+
+          <div>
+            <CommunityPreviewGrid posts={communityPreview.slice(0, 4)} />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 rounded-[2.25rem] border border-border/60 bg-card/65 px-5 py-6 sm:px-7 sm:py-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+        <div className="space-y-5">
+          <div className="space-y-3">
+            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Pricing</p>
+            <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em]">
+              Start free. Upgrade only when the output is already working.
+            </h2>
+            <p className="max-w-xl text-base leading-7 text-muted-foreground">
+              The free plan is enough to test the product honestly. Pro is there to remove friction once you know you
+              want cleaner, faster, watermark-free results.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {[
+              "Free credits let people try the core workflow before paying.",
+              "Pro keeps the pitch simple: HD quality, no ads, no watermark.",
+              "The upgrade decision is about finish quality, not feature confusion.",
+            ].map((item) => (
+              <div key={item} className="flex gap-3 rounded-[1.25rem] border border-border/55 bg-background/60 p-3">
+                <div className="rounded-full bg-primary/12 p-2 text-primary">
+                  <Check className="h-4 w-4" />
+                </div>
+                <p className="text-sm leading-6 text-foreground">{item}</p>
+              </div>
             ))}
           </div>
-        </section>
-      ) : null}
-      <section className="space-y-4">
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-6">
-          <h2 className="font-display text-2xl font-semibold">Community Showcase</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Latest public transformations from creators.</p>
-          <div className="mt-4">
-            <CommunityGrid posts={communityPreview} enableLikes={false} />
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[1.35rem] border border-border/55 bg-background/60 p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Try first</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">{freeDailyCredits || 2} daily free credits</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Enough to validate the workflow before paying.</p>
+            </div>
+            <div className="rounded-[1.35rem] border border-border/55 bg-background/60 p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Occasional use</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
+                {bestCreditPack ? bestCreditPack.label : "Flexible credit packs"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Buy credits only when you need them instead of forcing a subscription.
+              </p>
+            </div>
+            <div className="rounded-[1.35rem] border border-border/55 bg-background/60 p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Frequent use</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">{PRICING.pro.price} for cleaner output</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Pro stays simple: watermark-free, ad-free, higher-quality exports.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-[1.85rem] border border-border/60 bg-background/85 p-6">
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Free</p>
+            <h3 className="mt-3 font-display text-3xl font-semibold">{PRICING.free.price}</h3>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{PRICING.free.description}</p>
+            <div className="mt-5 space-y-3">
+              {PRICING.free.features.map((feature) => (
+                <div key={feature} className="flex items-center gap-2 text-sm text-foreground">
+                  <Check className="h-4 w-4 text-primary" />
+                  <span>{feature}</span>
+                </div>
+              ))}
+            </div>
+            <Button className="mt-6 w-full" variant="outline" asChild>
+              <Link href="/generate">Try Free</Link>
+            </Button>
+          </div>
+
+          <div className="rounded-[1.85rem] border border-primary/30 bg-primary/8 p-6 shadow-[0_24px_60px_-36px_rgba(199,102,43,0.6)]">
+            <p className="inline-flex rounded-full border border-primary/20 bg-primary/12 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-primary">
+              Best Value
+            </p>
+            <h3 className="mt-3 font-display text-3xl font-semibold">{PRICING.pro.price}</h3>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{PRICING.pro.description}</p>
+            <div className="mt-5 space-y-3">
+              {PRICING.pro.features.map((feature) => (
+                <div key={feature} className="flex items-center gap-2 text-sm text-foreground">
+                  <Check className="h-4 w-4 text-primary" />
+                  <span>{feature}</span>
+                </div>
+              ))}
+            </div>
+            <Button className="mt-6 w-full" asChild>
+              <Link href="/pricing">See Full Pricing</Link>
+            </Button>
           </div>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-primary/40 bg-primary/10 p-6">
-        <h2 className="font-display text-2xl font-semibold tracking-tight">Download Android App</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Faster uploads, ad rewards, and push notifications in the mobile app.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Button type="button" disabled>
-            Get Android APK
-          </Button>
-          <Button type="button" variant="secondary" disabled>
-            Google Play (Coming Soon)
-          </Button>
-        </div>
-      </section>
-
-      <section className="space-y-6">
-        <h2 className="font-display text-3xl font-semibold tracking-tight">Pricing</h2>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="border-border/60 bg-card/70">
-            <CardHeader>
-              <CardTitle className="font-display text-2xl">{PRICING.free.name}</CardTitle>
-              <p className="text-3xl font-bold">{PRICING.free.price}</p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {PRICING.free.features.map((feature) => (
-                <p key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Check className="h-4 w-4 text-primary" />
-                  {feature}
-                </p>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="border-primary/40 bg-primary/10">
-            <CardHeader>
-              <CardTitle className="font-display text-2xl">{PRICING.pro.name}</CardTitle>
-              <p className="text-3xl font-bold">{PRICING.pro.price}</p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {PRICING.pro.features.map((feature) => (
-                <p key={feature} className="flex items-center gap-2 text-sm">
-                  <Check className="h-4 w-4 text-primary" />
-                  {feature}
-                </p>
-              ))}
-              <Button className="mt-4" asChild>
-                <Link href="/pricing">See Full Pricing</Link>
-              </Button>
-            </CardContent>
-          </Card>
+      <section className="overflow-hidden rounded-[2.25rem] border border-primary/25 bg-[linear-gradient(135deg,rgba(199,102,43,0.12),rgba(255,244,228,0.9)_48%,rgba(255,218,182,0.5))] px-5 py-8 sm:px-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl space-y-3">
+            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Ready To Test It</p>
+            <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em]">
+              Start with one portrait. Keep the workflow if the result hits.
+            </h2>
+            <p className="text-base leading-7 text-muted-foreground">
+              The homepage should sell confidence. The product still has to earn the upgrade with the first output.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button size="lg" asChild>
+              <Link href="/generate">
+                Generate Your First Look
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild>
+              <Link href="/pricing">Compare Plans</Link>
+            </Button>
+          </div>
         </div>
       </section>
 

@@ -9,7 +9,7 @@ import { CommunityPostView, GenerationWithPrompt, Prompt, UserProfile } from "@/
 
 type PromptSort = "trending" | "newest" | "most_used";
 const PUBLIC_DATA_REVALIDATE_SECONDS = 600;
-const PUBLIC_QUERY_TIMEOUT_MS = 2500;
+const PUBLIC_QUERY_TIMEOUT_MS = 1500;
 
 async function withTimeout<T>(promiseLike: PromiseLike<T>, timeoutMs = PUBLIC_QUERY_TIMEOUT_MS): Promise<T | null> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -216,46 +216,156 @@ function applyPromptFilters(
   return result;
 }
 
+function getPromptCandidateLimit(limit: number | undefined, hasTargetedFilters: boolean) {
+  if (!limit) return 180;
+  const paddedLimit = hasTargetedFilters ? limit * 4 : limit * 6;
+  return Math.max(limit, Math.min(180, paddedLimit));
+}
+
+function appendPromptFallbacks(prompts: Prompt[], fallbackPrompts: Prompt[]) {
+  const seenIds = new Set(prompts.map((prompt) => prompt.id));
+  const combined = [...prompts];
+
+  for (const prompt of fallbackPrompts) {
+    if (seenIds.has(prompt.id)) continue;
+    combined.push(prompt);
+    seenIds.add(prompt.id);
+  }
+
+  return combined;
+}
+
+async function getPromptsFromSearchRpc(
+  supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
+  options: {
+    category: string;
+    search: string;
+    sort: PromptSort;
+    featuredOnly: boolean;
+    limit: number;
+    tag: string;
+  },
+) {
+  const result = await withTimeout(
+    supabase.rpc("search_public_prompts", {
+      category_input: options.category,
+      search_input: options.search,
+      sort_input: options.sort,
+      featured_only_input: options.featuredOnly,
+      limit_input: options.limit,
+      tag_input: options.tag,
+    }),
+  );
+
+  return (result?.data as Prompt[] | null) ?? null;
+}
+
+async function getPromptsFromQueryBuilder(
+  supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
+  options: {
+    category: string;
+    search: string;
+    sort: PromptSort;
+    featuredOnly: boolean;
+    limit: number;
+    tag: string;
+  },
+) {
+  function createBaseQuery() {
+    let query = supabase.from("prompts").select("*");
+
+    if (options.category !== "All") query = query.eq("category", options.category);
+    if (options.featuredOnly) query = query.eq("is_featured", true);
+    if (options.tag) query = query.contains("tags", [options.tag]);
+
+    if (options.sort === "newest") query = query.order("created_at", { ascending: false });
+    if (options.sort === "most_used") query = query.order("use_count", { ascending: false });
+    if (options.sort === "trending") query = query.order("is_featured", { ascending: false }).order("use_count", { ascending: false });
+
+    return query;
+  }
+
+  async function runQuery(query: ReturnType<typeof createBaseQuery>) {
+    const result = await withTimeout(query.limit(options.limit));
+    return (result?.data as Prompt[] | null) ?? null;
+  }
+
+  const queries: Array<Promise<Prompt[] | null>> = [];
+
+  if (options.search) {
+    queries.push(
+      runQuery(
+        createBaseQuery().or(
+          `title.ilike.%${options.search}%,description.ilike.%${options.search}%,category.ilike.%${options.search}%`,
+        ),
+      ),
+    );
+    queries.push(runQuery(createBaseQuery().contains("tags", [options.search])));
+  } else {
+    queries.push(runQuery(createBaseQuery()));
+  }
+
+  const results = await Promise.all(queries);
+  const merged = new Map<string, Prompt>();
+
+  for (const rows of results) {
+    for (const prompt of rows ?? []) {
+      merged.set(prompt.id, prompt);
+    }
+  }
+
+  if (!merged.size && results.every((rows) => rows === null)) {
+    return null;
+  }
+
+  return Array.from(merged.values());
+}
+
 async function getPromptsUncached(options?: GetPromptsOptions) {
   const { category: rawCategory = "All", search = "", sort = "trending", featuredOnly = false, limit, tag = "" } = options ?? {};
   const category = normalizeCategory(rawCategory);
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedTag = normalizePromptTag(tag);
   const fallbackPrompts = applyPromptFilters(STARTER_PROMPTS, category, featuredOnly, normalizedSearch, normalizedTag);
+  const sortedFallbackPrompts = sortPrompts(fallbackPrompts, sort);
+  const queryLimit = getPromptCandidateLimit(limit, Boolean(normalizedSearch || normalizedTag));
+  const isAllFeed = category === "All" && !normalizedSearch && !normalizedTag;
+  const diversityOptions = isAllFeed
+    ? { maxPerTheme: 1, maxPerCategory: 3, requireUniqueImages: true, requireUniquePromptText: true }
+    : { maxPerTheme: normalizedSearch || normalizedTag ? 4 : 2, requireUniqueImages: true, requireUniquePromptText: true };
 
   if (isSupabaseServiceConfigured()) {
     const supabase = createServiceRoleClient();
     if (supabase) {
-      let query = supabase.from("prompts").select("*");
+      const rpcPrompts = await getPromptsFromSearchRpc(supabase, {
+        category,
+        search: normalizedSearch,
+        sort,
+        featuredOnly,
+        limit: queryLimit,
+        tag: normalizedTag,
+      });
 
-      if (category !== "All") query = query.eq("category", category);
-      if (featuredOnly) query = query.eq("is_featured", true);
-      if (normalizedSearch) {
-        query = query.or(
-          `title.ilike.%${normalizedSearch}%,description.ilike.%${normalizedSearch}%,category.ilike.%${normalizedSearch}%`,
-        );
+      if (rpcPrompts) {
+        let merged = appendPromptFallbacks(rpcPrompts, sortedFallbackPrompts);
+        merged = dedupeAndDiversifyPrompts(merged, diversityOptions);
+        if (limit) merged = merged.slice(0, limit);
+        return merged;
       }
 
-      if (normalizedTag) query = query.contains("tags", [normalizedTag]);
+      const queryBuilderPrompts = await getPromptsFromQueryBuilder(supabase, {
+        category,
+        search: normalizedSearch,
+        sort,
+        featuredOnly,
+        limit: queryLimit,
+        tag: normalizedTag,
+      });
 
-      if (sort === "newest") query = query.order("created_at", { ascending: false });
-      if (sort === "most_used") query = query.order("use_count", { ascending: false });
-      if (sort === "trending") query = query.order("is_featured", { ascending: false }).order("use_count", { ascending: false });
-
-      if (limit) query = query.limit(limit);
-
-      const result = await withTimeout(query);
-      if (result?.data) {
-        const mergedById = new Map<string, Prompt>();
-        for (const prompt of fallbackPrompts) mergedById.set(prompt.id, prompt);
-        for (const prompt of result.data as Prompt[]) mergedById.set(prompt.id, prompt);
-
-        const isAllFeed = category === "All" && !normalizedSearch && !normalizedTag;
-        const diversityOptions = isAllFeed
-          ? { maxPerTheme: 1, maxPerCategory: 3, requireUniqueImages: true, requireUniquePromptText: true }
-          : { maxPerTheme: normalizedSearch || normalizedTag ? 4 : 2, requireUniqueImages: true, requireUniquePromptText: true };
-        let merged = applyPromptFilters(Array.from(mergedById.values()), category, featuredOnly, normalizedSearch, normalizedTag);
+      if (queryBuilderPrompts) {
+        let merged = applyPromptFilters(queryBuilderPrompts, category, featuredOnly, normalizedSearch, normalizedTag);
         merged = sortPrompts(merged, sort);
+        merged = appendPromptFallbacks(merged, sortedFallbackPrompts);
         merged = dedupeAndDiversifyPrompts(merged, diversityOptions);
         if (limit) merged = merged.slice(0, limit);
         return merged;
@@ -263,11 +373,7 @@ async function getPromptsUncached(options?: GetPromptsOptions) {
     }
   }
 
-  const isAllFeed = category === "All" && !normalizedSearch && !normalizedTag;
-  const diversityOptions = isAllFeed
-    ? { maxPerTheme: 1, maxPerCategory: 3, requireUniqueImages: true, requireUniquePromptText: true }
-    : { maxPerTheme: normalizedSearch || normalizedTag ? 4 : 2, requireUniqueImages: true, requireUniquePromptText: true };
-  let result = sortPrompts(fallbackPrompts, sort);
+  let result = sortedFallbackPrompts;
   result = dedupeAndDiversifyPrompts(result, diversityOptions);
   if (limit) result = result.slice(0, limit);
   return result;
@@ -290,7 +396,7 @@ const getPromptsCached = unstable_cache(
       featuredOnly,
       limit: limit ?? undefined,
     }),
-  ["public-prompts-v6"],
+  ["public-prompts-v7"],
   { revalidate: PUBLIC_DATA_REVALIDATE_SECONDS },
 );
 
@@ -480,28 +586,46 @@ export async function ensureUserProfile(authUser: User) {
   const supabase = createServiceRoleClient();
   if (!supabase) return null;
 
-  const fullName =
+  const { data: existing } = await supabase.from("users").select("*").eq("id", authUser.id).maybeSingle();
+  const existingProfile = (existing as UserProfile | null) ?? null;
+  const nextEmail = authUser.email ?? existingProfile?.email ?? null;
+  const nextFullName =
     authUser.user_metadata?.full_name ??
     authUser.user_metadata?.name ??
+    existingProfile?.full_name ??
     authUser.email?.split("@")[0] ??
     "PromptGallery User";
-  const avatarUrl = authUser.user_metadata?.avatar_url ?? null;
+  const nextAvatarUrl = authUser.user_metadata?.avatar_url ?? existingProfile?.avatar_url ?? null;
+
+  if (!nextEmail) {
+    return existingProfile;
+  }
+
+  const needsSync =
+    !existingProfile ||
+    existingProfile.email !== nextEmail ||
+    existingProfile.full_name !== nextFullName ||
+    existingProfile.avatar_url !== nextAvatarUrl;
+
+  if (!needsSync) {
+    return existingProfile;
+  }
 
   const { data } = await supabase
     .from("users")
     .upsert(
       {
         id: authUser.id,
-        email: authUser.email,
-        full_name: fullName,
-        avatar_url: avatarUrl,
+        email: nextEmail,
+        full_name: nextFullName,
+        avatar_url: nextAvatarUrl,
       },
       { onConflict: "id" },
     )
     .select("*")
     .single();
 
-  return (data as UserProfile) ?? null;
+  return (data as UserProfile) ?? existingProfile ?? null;
 }
 
 export async function getGenerationHistory(userId: string, limit = 30) {

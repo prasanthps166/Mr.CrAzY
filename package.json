@@ -13,7 +13,8 @@
     "test:e2e": "npm run build && playwright test",
     "test:e2e:headed": "playwright test --headed",
     "check:guards": "node scripts/check-route-guards.mjs",
-    "verify": "npm run lint && npm run test:run && npm run check:guards && npm run build && npm run typecheck --prefix mobile",
+    "check:build-budgets": "node scripts/check-build-budgets.mjs",
+    "verify": "npm run lint && npm run test:run && npm run check:guards && npm run build && npm run check:build-budgets && npm run typecheck --prefix mobile",
     "smoke:phase2": "node scripts/phase2-smoke.mjs",
     "smoke:phase3": "node scripts/phase3-smoke.mjs",
     "smoke:phase4": "node scripts/phase4-smoke.mjs"

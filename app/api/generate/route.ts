@@ -20,14 +20,12 @@ function jsonWithRequestId(requestId: string, body: unknown, init?: ResponseInit
 }
 
 async function uploadToStorage(
+  supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
   bucket: "originals" | "generated",
   path: string,
   buffer: Buffer,
   contentType: string,
 ) {
-  const supabase = createServiceRoleClient();
-  if (!supabase) throw new Error("Supabase service role key is missing");
-
   const { error } = await supabase.storage.from(bucket).upload(path, buffer, {
     contentType,
     upsert: false,
@@ -36,6 +34,27 @@ async function uploadToStorage(
 
   const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path);
   return publicData.publicUrl;
+}
+
+async function incrementPromptUseCount(
+  supabase: NonNullable<ReturnType<typeof createServiceRoleClient>>,
+  promptId: string,
+  fallbackCount: number,
+) {
+  const { error: rpcError } = await supabase.rpc("increment_prompt_use_count", {
+    prompt_id_input: promptId,
+  });
+  if (!rpcError) return;
+
+  logWarn("generate.prompt_use_count_rpc_fallback", {
+    prompt_id: promptId,
+    error_message: rpcError.message,
+  });
+
+  const { error: updateError } = await supabase.from("prompts").update({ use_count: fallbackCount }).eq("id", promptId);
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -103,7 +122,7 @@ export async function POST(request: NextRequest) {
     return jsonWithRequestId(requestId, { message: "Prompt not found" }, { status: 404 });
   }
 
-  await trackEvent({
+  void trackEvent({
     userId: authUser?.id ?? null,
     eventType: "generation_start",
     metadata: {
@@ -128,8 +147,7 @@ export async function POST(request: NextRequest) {
   let remainingCredits: number | null = null;
   let userForCreditDeduction: Awaited<ReturnType<typeof getUserProfileById>> = null;
   if (authUser) {
-    await ensureUserProfile(authUser);
-    const profile = await getUserProfileById(authUser.id);
+    const profile = (await ensureUserProfile(authUser)) ?? (await getUserProfileById(authUser.id));
     if (!profile) {
       return jsonWithRequestId(requestId, { message: "Unable to load user profile" }, { status: 500 });
     }
@@ -148,13 +166,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const supabase = createServiceRoleClient();
+    if (!supabase) throw new Error("Supabase service role key is missing");
+
     const inputBuffer = Buffer.from(await file.arrayBuffer());
     const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
     const contentType = file.type || "image/jpeg";
     const basePrefix = authUser?.id ?? `guest-${ip.replace(/[^a-zA-Z0-9]/g, "")}`;
     const originalPath = `${basePrefix}/${Date.now()}-${randomUUID()}-original.${extension}`;
 
-    const originalImageUrl = await uploadToStorage("originals", originalPath, inputBuffer, contentType);
+    const originalImageUrl = await uploadToStorage(supabase, "originals", originalPath, inputBuffer, contentType);
 
     const prediction = await createImg2ImgPrediction({
       prompt: prompt.prompt_text,
@@ -170,20 +191,27 @@ export async function POST(request: NextRequest) {
     const outputBuffer = Buffer.from(await outputResponse.arrayBuffer());
 
     const cleanPath = `${basePrefix}/${Date.now()}-${randomUUID()}-generated-clean.jpg`;
-    const watermarkedPath = `${basePrefix}/${Date.now()}-${randomUUID()}-generated-watermarked.jpg`;
+    const cleanUploadPromise = uploadToStorage(supabase, "generated", cleanPath, outputBuffer, "image/jpeg");
+    let cleanImageUrl: string;
+    let watermarkedImageUrl: string;
 
-    const cleanImageUrl = await uploadToStorage("generated", cleanPath, outputBuffer, "image/jpeg");
-    const watermarkedBuffer = await addWatermark(outputBuffer);
-    const watermarkedImageUrl = await uploadToStorage(
-      "generated",
-      watermarkedPath,
-      watermarkedBuffer,
-      "image/jpeg",
-    );
+    if (authUser && isPro) {
+      cleanImageUrl = await cleanUploadPromise;
+      watermarkedImageUrl = cleanImageUrl;
+    } else {
+      const watermarkedPath = `${basePrefix}/${Date.now()}-${randomUUID()}-generated-watermarked.jpg`;
+      const watermarkedBuffer = await addWatermark(outputBuffer);
+      const watermarkedUploadPromise = uploadToStorage(
+        supabase,
+        "generated",
+        watermarkedPath,
+        watermarkedBuffer,
+        "image/jpeg",
+      );
+      [cleanImageUrl, watermarkedImageUrl] = await Promise.all([cleanUploadPromise, watermarkedUploadPromise]);
+    }
+
     const generatedImageUrl = authUser && isPro ? cleanImageUrl : watermarkedImageUrl;
-
-    const supabase = createServiceRoleClient();
-    if (!supabase) throw new Error("Supabase service role key is missing");
 
     const { data: generationData } = await supabase
       .from("generations")
@@ -201,16 +229,41 @@ export async function POST(request: NextRequest) {
       .single();
     const generationId = generationData?.id ?? null;
 
-    await supabase.from("prompts").update({ use_count: prompt.use_count + 1 }).eq("id", prompt.id);
+    const promptUseCountPromise = incrementPromptUseCount(supabase, prompt.id, prompt.use_count + 1);
     if (authUser && userForCreditDeduction) {
-      const consumption = await consumeCredit(userForCreditDeduction);
+      const [consumptionResult, promptUseCountResult] = await Promise.allSettled([
+        consumeCredit(userForCreditDeduction),
+        promptUseCountPromise,
+      ]);
+
+      if (promptUseCountResult.status === "rejected") {
+        logError("generate.prompt_use_count_failed", promptUseCountResult.reason, {
+          request_id: requestId,
+          user_id: authUser.id,
+          prompt_id: prompt.id,
+        });
+      }
+
+      if (consumptionResult.status === "rejected") {
+        throw consumptionResult.reason;
+      }
+
+      const consumption = consumptionResult.value;
       if (consumption.ok) {
         isPro = consumption.user.is_pro;
         remainingCredits = consumption.user.is_pro ? null : consumption.user.credits;
       }
+    } else {
+      void promptUseCountPromise.catch((error) => {
+        logError("generate.prompt_use_count_failed", error, {
+          request_id: requestId,
+          user_id: authUser?.id ?? null,
+          prompt_id: prompt.id,
+        });
+      });
     }
 
-    await trackEvent({
+    void trackEvent({
       userId: authUser?.id ?? null,
       eventType: "generation_complete",
       metadata: {

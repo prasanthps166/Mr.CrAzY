@@ -41,7 +41,7 @@ function CommunityItem({
   const [loaded, setLoaded] = useState(false);
 
   return (
-    <Card className="mb-4 break-inside-avoid overflow-hidden border-border/60 bg-card/70">
+    <Card className="mb-4 break-inside-avoid overflow-hidden rounded-[1.75rem] border-border/60 bg-card/78 shadow-[0_22px_55px_-42px_rgba(52,34,21,0.72)]">
       <div className="relative aspect-[4/5]">
         {!loaded && <Skeleton className="absolute inset-0" />}
         <Image
@@ -52,20 +52,35 @@ function CommunityItem({
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           onLoad={() => setLoaded(true)}
         />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#120c07]/80 via-transparent to-transparent" />
+        <div className="absolute left-4 top-4 flex flex-wrap items-center gap-2">
+          <Badge className="border-white/10 bg-[#20160d]/55 text-amber-50 hover:bg-[#20160d]/55">
+            {post.prompt_category}
+          </Badge>
+          <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-amber-50/88">
+            {post.username}
+          </span>
+        </div>
+        <div className="absolute inset-x-4 bottom-4">
+          <div className="rounded-[1.25rem] border border-white/10 bg-black/25 px-3 py-2 backdrop-blur-sm">
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-amber-100/72">Community Pick</p>
+            <p className="mt-1 line-clamp-2 font-display text-2xl leading-tight text-white">{post.prompt_title}</p>
+          </div>
+        </div>
       </div>
       <CardContent className="space-y-3 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <p className="line-clamp-1 text-sm font-semibold">{post.prompt_title}</p>
-          <Badge variant="secondary">{post.prompt_category}</Badge>
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="line-clamp-1">Shared by {post.username}</span>
+          <span>{likes} likes</span>
         </div>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>by {post.username}</span>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-foreground">See how this style performs on a real community upload.</p>
           <div className="flex items-center gap-2">
             {canFollow ? (
               <Button
                 size="sm"
                 variant={isFollowing ? "secondary" : "outline"}
-                className="h-8"
+                className="h-8 rounded-full"
                 onClick={onFollow}
                 disabled={followingLoading}
               >
@@ -76,7 +91,7 @@ function CommunityItem({
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 gap-1"
+              className="h-8 rounded-full gap-1"
               disabled={!enableLikes}
               onClick={onLike}
             >

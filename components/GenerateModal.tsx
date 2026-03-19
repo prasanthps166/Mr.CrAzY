@@ -17,15 +17,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { GENERATE_MESSAGES } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import { Prompt } from "@/types";
 
 type GenerateModalProps = {
   prompt: Pick<Prompt, "id" | "title" | "example_image_url">;
   triggerLabel?: string;
+  triggerVariant?: ButtonProps["variant"];
+  triggerSize?: ButtonProps["size"];
+  triggerClassName?: string;
   onGenerated?: (generatedUrl: string) => void;
 };
 
@@ -38,6 +42,9 @@ type GenerationResult = {
 export function GenerateModal({
   prompt,
   triggerLabel = "Use This Prompt",
+  triggerVariant = "default",
+  triggerSize = "default",
+  triggerClassName,
   onGenerated,
 }: GenerateModalProps) {
   const [open, setOpen] = useState(false);
@@ -175,7 +182,7 @@ export function GenerateModal({
       }}
     >
       <DialogTrigger asChild>
-        <Button className="gap-2">
+        <Button className={cn("gap-2", triggerClassName)} variant={triggerVariant} size={triggerSize}>
           <WandSparkles className="h-4 w-4" />
           {triggerLabel}
         </Button>

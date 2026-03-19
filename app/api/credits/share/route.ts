@@ -18,8 +18,7 @@ export async function POST(request: NextRequest) {
 
   const channel = body.channel === "instagram" ? "instagram" : "whatsapp";
 
-  await ensureUserProfile(authUser);
-  const profile = await getUserProfileById(authUser.id);
+  const profile = (await ensureUserProfile(authUser)) ?? (await getUserProfileById(authUser.id));
   if (!profile) {
     return NextResponse.json({ message: "User profile not found" }, { status: 404 });
   }

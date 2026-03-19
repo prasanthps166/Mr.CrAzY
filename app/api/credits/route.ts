@@ -18,8 +18,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  await ensureUserProfile(authUser);
-  const profile = await getUserProfileById(authUser.id);
+  const profile = (await ensureUserProfile(authUser)) ?? (await getUserProfileById(authUser.id));
   if (!profile) {
     return NextResponse.json(
       {
