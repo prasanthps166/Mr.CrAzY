@@ -227,7 +227,7 @@ export default async function HomePage() {
               const Icon = stat.icon;
 
               return (
-                <div key={stat.label} className="rounded-[1.5rem] border border-border/60 bg-card/70 p-4">
+                <div key={stat.label} className="brand-panel rounded-[1.5rem] border border-border/60 p-4">
                   <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                     <Icon className="h-3.5 w-3.5 text-primary" />
                     <span>{stat.label}</span>
@@ -242,7 +242,7 @@ export default async function HomePage() {
 
         <div className="relative">
           <div className="absolute inset-x-10 top-6 h-24 rounded-full bg-primary/15 blur-3xl" />
-          <div className="relative rounded-[2rem] border border-[#3f2a18]/15 bg-[#1f150e] p-3 text-amber-50 shadow-[0_32px_100px_-45px_rgba(69,38,14,0.8)]">
+          <div className="brand-shell relative rounded-[2rem] border border-[#3f2a18]/15 bg-[#1f150e] p-3 text-amber-50 shadow-[0_32px_100px_-45px_rgba(69,38,14,0.8)]">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
               <div className="relative overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#2a1c11]">
                 <div className="relative aspect-[4/5]">
@@ -353,10 +353,10 @@ export default async function HomePage() {
 
       <section className="animate-fade-up-delay grid gap-4 md:grid-cols-3">
         {workflowSteps.map((step, index) => (
-          <div
-            key={step.label}
-            className="rounded-[1.75rem] border border-border/60 bg-card/70 p-5 shadow-[0_18px_40px_-32px_rgba(42,29,18,0.7)]"
-          >
+            <div
+              key={step.label}
+              className="brand-panel rounded-[1.75rem] border border-border/60 p-5"
+            >
             <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
               Step 0{index + 1}
             </p>

@@ -114,9 +114,17 @@ export function NavbarClientShell() {
       }
     }
 
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setWorkspaceOpen(false);
+      }
+    }
+
     window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [workspaceOpen]);
 
@@ -173,7 +181,7 @@ export function NavbarClientShell() {
               <div
                 id="desktop-workspace-menu"
                 role="menu"
-                className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 rounded-2xl border border-border/70 bg-popover p-1.5 text-popover-foreground shadow-lg"
+                className="brand-panel absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 rounded-2xl border border-border/70 bg-popover/96 p-1.5 text-popover-foreground shadow-lg"
               >
                 <p className="px-3 py-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                   Workspace
