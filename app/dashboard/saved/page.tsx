@@ -130,6 +130,12 @@ export default function SavedPromptsPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
   }, [categoryFilter, items, searchQuery, sortBy]);
+  const showSavedFilters =
+    items.length > 6 ||
+    categoryOptions.length > 2 ||
+    Boolean(searchQuery) ||
+    categoryFilter !== "All" ||
+    sortBy !== "recent";
 
   useEffect(() => {
     async function bootstrap() {
@@ -328,9 +334,14 @@ export default function SavedPromptsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-10">
-      <div className="mb-8 space-y-2">
-        <h1 className="font-display text-4xl font-bold tracking-tight">Saved Prompts</h1>
-        <p className="text-muted-foreground">Create collections and keep your favorite styles organized.</p>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-2">
+          <h1 className="font-display text-4xl font-bold tracking-tight">Saved Prompts</h1>
+          <p className="text-muted-foreground">Keep your best looks close so you can reuse them faster.</p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href="/gallery">Browse Gallery</Link>
+        </Button>
       </div>
 
       <Card className="mb-6 border-border/60 bg-card/70">
@@ -423,7 +434,7 @@ export default function SavedPromptsPage() {
             <CardTitle className="font-display text-lg">Find Saved Prompts</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -433,28 +444,35 @@ export default function SavedPromptsPage() {
                   className="pl-9"
                 />
               </div>
-              <select
-                value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                aria-label="Filter by category"
-              >
-                {categoryOptions.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as SavedPromptSort)}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                aria-label="Sort saved prompts"
-              >
-                <option value="recent">Recently Saved</option>
-                <option value="most_used">Most Used</option>
-                <option value="title">Title A-Z</option>
-              </select>
+              {showSavedFilters ? (
+                <details className="rounded-[1.2rem] border border-border/60 bg-background/70 px-4 py-3 text-sm text-foreground">
+                  <summary className="cursor-pointer list-none font-medium">Filters</summary>
+                  <div className="mt-4 grid gap-3 border-t border-border/60 pt-4 sm:grid-cols-2">
+                    <select
+                      value={categoryFilter}
+                      onChange={(event) => setCategoryFilter(event.target.value)}
+                      className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      aria-label="Filter by category"
+                    >
+                      {categoryOptions.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={sortBy}
+                      onChange={(event) => setSortBy(event.target.value as SavedPromptSort)}
+                      className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      aria-label="Sort saved prompts"
+                    >
+                      <option value="recent">Recently Saved</option>
+                      <option value="most_used">Most Used</option>
+                      <option value="title">Title A-Z</option>
+                    </select>
+                  </div>
+                </details>
+              ) : null}
             </div>
             <div className="text-xs text-muted-foreground">
               Showing {filteredItems.length} of {items.length} prompt{items.length === 1 ? "" : "s"}

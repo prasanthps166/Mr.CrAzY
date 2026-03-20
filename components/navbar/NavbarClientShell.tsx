@@ -157,8 +157,26 @@ export function NavbarClientShell() {
   }
 
   const desktopWorkspaceLinks = user ? [...workspaceNavItems, { href: "/admin", label: "Admin" }] : [];
+  const desktopWorkspaceGroups = user
+    ? [
+        {
+          label: "Your Work",
+          items: desktopWorkspaceLinks.filter((item) => item.href === "/dashboard" || item.href === "/dashboard/saved"),
+        },
+        {
+          label: "Tools",
+          items: desktopWorkspaceLinks.filter((item) => item.href === "/dashboard/api" || item.href === "/creator"),
+        },
+        {
+          label: "Admin",
+          items: desktopWorkspaceLinks.filter((item) => item.href === "/admin"),
+        },
+      ].filter((group) => group.items.length > 0)
+    : [];
   const activeWorkspaceLink = desktopWorkspaceLinks.find((item) => isActiveRoute(pathname, item.href));
   const workspaceMenuLabel = activeWorkspaceLink?.label ?? "Workspace";
+  const showWatchAd = !credits.isPro && (credits.credits ?? 0) < 3;
+  const showUpgrade = Boolean(user && !credits.isPro);
 
   return (
     <>
@@ -181,43 +199,85 @@ export function NavbarClientShell() {
               <div
                 id="desktop-workspace-menu"
                 role="menu"
-                className="brand-panel absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 rounded-2xl border border-border/70 bg-popover/96 p-1.5 text-popover-foreground shadow-lg"
+                className="brand-panel absolute right-0 top-[calc(100%+0.5rem)] z-50 w-64 rounded-2xl border border-border/70 bg-popover/96 p-1.5 text-popover-foreground shadow-lg"
               >
-                <p className="px-3 py-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  Workspace
-                </p>
-                {desktopWorkspaceLinks.map((item) => {
-                  const active = isActiveRoute(pathname, item.href);
-                  const showSeparator = item.href === "/admin";
+                {desktopWorkspaceGroups.map((group, groupIndex) => (
+                  <div key={group.label}>
+                    {groupIndex > 0 ? <div className="my-1 h-px bg-border/70" /> : null}
+                    <p className="px-3 py-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                      {group.label}
+                    </p>
+                    {group.items.map((item) => {
+                      const active = isActiveRoute(pathname, item.href);
 
-                  return (
-                    <div key={item.href}>
-                      {showSeparator ? <div className="my-1 h-px bg-border/70" /> : null}
-                      <Link
-                        href={item.href}
-                        onClick={() => setWorkspaceOpen(false)}
-                        className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
-                          active ? "bg-accent text-foreground" : "text-foreground hover:bg-accent"
-                        }`}
-                        aria-current={active ? "page" : undefined}
-                        role="menuitem"
-                      >
-                        <span>{item.label}</span>
-                        {active ? <Check className="h-4 w-4 text-primary" /> : null}
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setWorkspaceOpen(false)}
+                          className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
+                            active ? "bg-accent text-foreground" : "text-foreground hover:bg-accent"
+                          }`}
+                          aria-current={active ? "page" : undefined}
+                          role="menuitem"
+                        >
+                          <span>{item.label}</span>
+                          {active ? <Check className="h-4 w-4 text-primary" /> : null}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
+
+                <div className="my-1 h-px bg-border/70" />
+                <div className="space-y-1 p-1.5">
+                  <p className="px-1.5 py-1 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    Account
+                  </p>
+                  {showUpgrade ? (
+                    <Button variant="secondary" className="w-full justify-start gap-2" asChild>
+                      <Link href="/pricing" onClick={() => setWorkspaceOpen(false)}>
+                        <Sparkles className="h-4 w-4" />
+                        Upgrade to Pro
                       </Link>
-                    </div>
-                  );
-                })}
+                    </Button>
+                  ) : null}
+                  {showWatchAd ? (
+                    <WatchAdButton
+                      label="Get 2 more credits"
+                      variant="outline"
+                      className="w-full justify-start"
+                    />
+                  ) : null}
+                  <ThemeToggle
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-2 rounded-xl px-3"
+                    showLabel
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-2 rounded-xl px-3"
+                    onClick={() => {
+                      setWorkspaceOpen(false);
+                      void signOut();
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </Button>
+                </div>
               </div>
             ) : null}
           </div>
         ) : null}
 
         <CreditBadge credits={credits.credits} isPro={credits.isPro} />
-        <ThemeToggle />
 
         {!user ? (
           <>
+            <ThemeToggle />
             <Button variant="ghost" asChild>
               <Link href="/login">Login</Link>
             </Button>
@@ -226,25 +286,9 @@ export function NavbarClientShell() {
             </Button>
           </>
         ) : (
-          <>
-            <Button asChild>
-              <Link href="/generate">Generate</Link>
-            </Button>
-            {!credits.isPro && (credits.credits ?? 0) < 3 ? (
-              <WatchAdButton label="Watch Ad" variant="secondary" />
-            ) : null}
-            {!credits.isPro ? (
-              <Button variant="secondary" asChild>
-                <Link href="/pricing" className="gap-1">
-                  <Sparkles className="h-4 w-4" />
-                  Upgrade
-                </Link>
-              </Button>
-            ) : null}
-            <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sign out">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </>
+          <Button asChild>
+            <Link href="/generate">Generate</Link>
+          </Button>
         )}
       </div>
 

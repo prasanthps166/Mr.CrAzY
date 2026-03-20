@@ -118,7 +118,6 @@ export default async function HomePage() {
   const heroPrompt = featuredPrompts[0] ?? proofPrompts[0] ?? null;
   const spotlightPrompts = (featuredPrompts.length > 1 ? featuredPrompts : proofPrompts).slice(1, 3);
   const signaturePrompts = proofPrompts.length ? proofPrompts : featuredPrompts.slice(0, 6);
-  const featuredCategories = Array.from(new Set(signaturePrompts.map((prompt) => prompt.category))).slice(0, 3);
   const communityLead = [...communityPreview].sort((left, right) => right.likes - left.likes)[0] ?? null;
   const fallbackCollage = FEATURED_EXAMPLES.slice(0, 3);
   const totalSignatureUses = signaturePrompts.reduce((sum, prompt) => sum + prompt.use_count, 0);
@@ -156,35 +155,6 @@ export default async function HomePage() {
       value: freeDailyCredits > 0 ? `${freeDailyCredits} free daily` : PRICING.pro.price,
       detail: `${PRICING.pro.price} Pro matters when clean exports or repeat use matter.`,
       icon: WalletCards,
-    },
-  ] as const;
-  const decisionSignals = [
-    {
-      eyebrow: "Most-used prompt",
-      title: heroPrompt?.title ?? "Start from a proven look",
-      description: heroPrompt
-        ? `${heroPrompt.use_count} uses is a strong signal that the preview converts.`
-        : "The lead card comes from the strongest prompt proof available.",
-      href: heroPrompt ? `/gallery/${heroPrompt.id}` : "/gallery",
-      cta: "Inspect the prompt",
-    },
-    {
-      eyebrow: communityLead ? "Community proof" : "Real examples",
-      title: communityLead ? `${communityLead.prompt_title} on real photos` : "Real outputs, not mockups",
-      description: communityLead
-        ? `${communityLead.username}'s post already has ${communityLead.likes} likes.`
-        : "Use real outputs to judge the style quickly.",
-      href: "/community",
-      cta: "Browse the community",
-    },
-    {
-      eyebrow: "Try first, pay later",
-      title: `${freeDailyCredits || 2} daily credits before ${PRICING.pro.price} Pro`,
-      description: bestCreditPack
-        ? `${bestCreditPack.label} covers occasional use. Pro removes ads, watermarks, and export friction.`
-        : "Validate the workflow first, then pay for cleaner exports or repeat use.",
-      href: "/pricing",
-      cta: "Compare plans",
     },
   ] as const;
 
@@ -351,66 +321,15 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="animate-fade-up-delay grid gap-4 md:grid-cols-3">
-        {workflowSteps.map((step, index) => (
-            <div
-              key={step.label}
-              className="brand-panel rounded-[1.75rem] border border-border/60 p-5"
-            >
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              Step 0{index + 1}
-            </p>
-            <h2 className="mt-3 font-display text-2xl font-semibold leading-tight">{step.label}</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{step.description}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]">
-        <div className="space-y-3">
-          <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Decision Signals</p>
-          <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em]">
-            Real proof beats generic hype.
-          </h2>
-          <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-            We show reused prompts, community results, and clear pricing so you can judge the product fast.
-          </p>
-          <div className="rounded-[1.5rem] border border-border/60 bg-card/70 p-4">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Best known for</p>
-            <p className="mt-3 text-sm font-semibold text-foreground">
-              {featuredCategories.length ? featuredCategories.join(" / ") : "Portraits / Anime / Festival"}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          {decisionSignals.map((signal) => (
-            <Link
-              key={signal.eyebrow}
-              href={signal.href}
-              className="group rounded-[1.75rem] border border-border/60 bg-card/75 p-5 shadow-[0_20px_55px_-40px_rgba(42,29,18,0.72)] transition hover:-translate-y-1 hover:border-primary/35 hover:shadow-[0_28px_70px_-42px_rgba(82,49,22,0.72)]"
-            >
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{signal.eyebrow}</p>
-              <h3 className="mt-3 font-display text-2xl font-semibold leading-tight">{signal.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">{signal.description}</p>
-              <span className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-foreground transition-transform group-hover:translate-x-0.5">
-                {signal.cta}
-                <ArrowRight className="h-4 w-4" />
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
       <section className="space-y-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl space-y-2">
             <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Signature Styles</p>
             <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em]">
-              The most reused looks on the platform right now.
+              Start with the looks people already reuse.
             </h2>
             <p className="text-base leading-7 text-muted-foreground">
-              These are the looks people keep coming back to because the preview and first result usually line up.
+              These are the styles people keep returning to because the preview and first result usually line up.
             </p>
           </div>
           <Button variant="ghost" asChild>
@@ -425,14 +344,25 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <RecommendedPromptsSection
-        title="Recommended For You"
-        description="Sign in to surface prompts closer to what you already save and generate."
-        limit={4}
-        linkHref="/gallery"
-        linkLabel="See more"
-        className="space-y-4"
-      />
+      <section className="animate-fade-up-delay space-y-4">
+        <div className="max-w-2xl space-y-2">
+          <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Fast Workflow</p>
+          <h2 className="font-display text-4xl font-semibold leading-none tracking-[-0.03em]">
+            Three short steps to your first usable result.
+          </h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {workflowSteps.map((step, index) => (
+            <div key={step.label} className="brand-panel rounded-[1.75rem] border border-border/60 p-5">
+              <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                Step 0{index + 1}
+              </p>
+              <h2 className="mt-3 font-display text-2xl font-semibold leading-tight">{step.label}</h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{step.description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="relative overflow-hidden rounded-[2.25rem] border border-[#3d2918]/20 bg-[#21160d] px-5 py-6 text-amber-50 sm:px-7 sm:py-8">
         <div className="absolute left-[-10%] top-[-18%] h-40 w-40 rounded-full bg-primary/18 blur-3xl" />
@@ -586,6 +516,15 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      <RecommendedPromptsSection
+        title="Recommended For You"
+        description="Sign in to surface prompts closer to what you already save and generate."
+        limit={4}
+        linkHref="/gallery"
+        linkLabel="See more"
+        className="space-y-4"
+      />
 
       <section className="overflow-hidden rounded-[2.25rem] border border-primary/25 bg-[linear-gradient(135deg,rgba(199,102,43,0.12),rgba(255,244,228,0.9)_48%,rgba(255,218,182,0.5))] px-5 py-8 sm:px-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">

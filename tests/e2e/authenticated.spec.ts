@@ -30,6 +30,8 @@ test.describe.serial("Authenticated flows", () => {
     if (!fixture) throw new Error("Authenticated fixture was not created");
 
     await loginAs(page, fixture.actor.email, fixture.actor.password);
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Start New Look" }).first()).toBeVisible();
 
     const workspaceButton = page.locator('button[aria-controls="desktop-workspace-menu"]');
     await expect(workspaceButton).toBeVisible();
@@ -39,6 +41,9 @@ test.describe.serial("Authenticated flows", () => {
     await expect(workspaceMenu).toBeVisible();
     await expect(workspaceMenu.getByRole("menuitem", { name: "Saved" })).toBeVisible();
     await expect(workspaceMenu.getByRole("menuitem", { name: "API Keys" })).toBeVisible();
+    await expect(workspaceMenu.getByRole("link", { name: "Upgrade to Pro" })).toBeVisible();
+    await expect(workspaceMenu.getByRole("button", { name: /Switch to (light|dark) mode/i })).toBeVisible();
+    await expect(workspaceMenu.getByRole("button", { name: "Sign out" })).toBeVisible();
 
     await workspaceMenu.getByRole("menuitem", { name: "Saved" }).click();
     await expect(page).toHaveURL(/\/dashboard\/saved/);

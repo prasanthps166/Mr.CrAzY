@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Compass, Flame, Search } from "lucide-react";
+import { ArrowRight, Compass, Flame, Search, SlidersHorizontal } from "lucide-react";
 
 import { AdBanner } from "@/components/AdBanner";
 import { CommunityGrid } from "@/components/CommunityGrid";
@@ -126,31 +126,22 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[1.4rem] border border-border/60 bg-background/70 p-4">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Scope</p>
-              <p className="mt-2 text-lg font-semibold capitalize text-foreground">
-                {scope === "following" ? "Following feed" : "Everyone"}
-              </p>
-            </div>
-            <div className="rounded-[1.4rem] border border-border/60 bg-background/70 p-4">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Category</p>
-              <p className="mt-2 text-lg font-semibold text-foreground">
-                {category === "All" ? "All categories" : category}
-              </p>
-            </div>
-            <div className="rounded-[1.4rem] border border-border/60 bg-background/70 p-4">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Sort</p>
-              <p className="mt-2 text-lg font-semibold text-foreground">
-                {sort === "most_liked" ? "Most liked" : "Latest first"}
-              </p>
-            </div>
+          <div className="mt-6 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="rounded-full border border-border/60 bg-background/72 px-3 py-1.5">
+              {scope === "following" ? "Following feed" : "Everyone"}
+            </span>
+            <span className="rounded-full border border-border/60 bg-background/72 px-3 py-1.5">
+              {category === "All" ? "All categories" : category}
+            </span>
+            <span className="rounded-full border border-border/60 bg-background/72 px-3 py-1.5">
+              {sort === "most_liked" ? "Most liked" : "Latest first"}
+            </span>
           </div>
         </div>
 
         <div className="rounded-[2rem] border border-[#3d2918]/20 bg-[#21160d] px-5 py-6 text-amber-50 sm:px-6">
           <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-amber-200/70">Most liked this week</p>
-          <h2 className="mt-3 font-display text-3xl font-semibold leading-tight">
+          <h2 className="mt-3 font-display text-2xl font-semibold leading-tight sm:text-3xl">
             {topWeekLead?.prompt_title ?? "See which transformations are actually landing"}
           </h2>
           <p className="mt-3 text-sm leading-6 text-amber-50/72">
@@ -181,12 +172,14 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-border/60 bg-card/72 p-5 sm:p-6">
+      <section className="rounded-[1.75rem] border border-border/60 bg-card/72 p-5 sm:p-6">
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Filter The Feed</p>
-              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Filter the feed fast.</h2>
+              <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">Refine The Feed</p>
+              <h2 className="mt-2 font-display text-2xl font-semibold leading-tight sm:text-3xl">
+                Search first. Open more filters only when you need them.
+              </h2>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant={scope === "all" ? "default" : "outline"} size="sm" className="rounded-full" asChild>
@@ -203,21 +196,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {PROMPT_CATEGORIES.map((item) => (
-              <Button
-                key={item}
-                variant={item === category ? "default" : "outline"}
-                size="sm"
-                className="rounded-full"
-                asChild
-              >
-                <Link href={categoryHref(item, scope, search, sort)}>{item}</Link>
-              </Button>
-            ))}
-          </div>
-
-          <form method="get" className="grid gap-3 lg:grid-cols-[1fr_180px_auto]">
+          <form method="get" className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-start">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -229,15 +208,43 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
             </div>
             <input type="hidden" name="category" value={category} />
             <input type="hidden" name="scope" value={scope} />
-            <select
-              name="sort"
-              defaultValue={sort}
-              className="h-11 rounded-full border border-input bg-background/85 px-4 text-sm"
-              aria-label="Sort feed"
-            >
-              <option value="latest">Latest</option>
-              <option value="most_liked">Most Liked</option>
-            </select>
+            <details className="rounded-[1.35rem] border border-border/60 bg-background/70 px-4 py-3 text-sm text-foreground">
+              <summary className="flex cursor-pointer list-none items-center gap-2 font-medium">
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                More filters
+              </summary>
+              <div className="mt-4 space-y-4 border-t border-border/60 pt-4">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Category</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {PROMPT_CATEGORIES.map((item) => (
+                      <Button
+                        key={item}
+                        variant={item === category ? "default" : "outline"}
+                        size="sm"
+                        className="rounded-full"
+                        asChild
+                      >
+                        <Link href={categoryHref(item, scope, search, sort)}>{item}</Link>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Sort</p>
+                  <select
+                    name="sort"
+                    defaultValue={sort}
+                    className="h-11 w-full rounded-full border border-input bg-background/85 px-4 text-sm"
+                    aria-label="Sort feed"
+                  >
+                    <option value="latest">Latest</option>
+                    <option value="most_liked">Most Liked</option>
+                  </select>
+                </div>
+              </div>
+            </details>
             <Button type="submit" className="h-11 rounded-full px-6">
               Apply Filters
             </Button>

@@ -122,16 +122,16 @@ export function CommunityFeedSection({
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.75rem] border border-border/60 bg-card/70 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-border/60 bg-card/70 px-5 py-4">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Live Feed</p>
-          <h2 className="mt-2 font-display text-2xl font-semibold">{title}</h2>
+          <h2 className="mt-2 font-display text-xl font-semibold sm:text-2xl">{title}</h2>
         </div>
         <div className="flex items-center gap-2">
           <p className="text-xs text-muted-foreground">Showing {posts.length} result(s)</p>
-          <Button variant="outline" size="sm" onClick={downloadCsv} disabled={!posts.length}>
+          <Button variant="ghost" size="sm" onClick={downloadCsv} disabled={!posts.length}>
             <Download className="mr-2 h-4 w-4" />
-            Export CSV
+            Export
           </Button>
         </div>
       </div>

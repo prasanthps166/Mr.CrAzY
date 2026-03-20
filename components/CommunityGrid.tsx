@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Heart, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -73,14 +74,18 @@ function CommunityItem({
           <span className="line-clamp-1">Shared by {post.username}</span>
           <span>{likes} likes</span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm text-foreground">See how this style performs on a real community upload.</p>
+        {post.prompt_id || canFollow ? (
           <div className="flex items-center gap-2">
+            {post.prompt_id ? (
+              <Button variant="outline" className={canFollow ? "flex-1" : "w-full"} asChild>
+                <Link href={`/gallery/${post.prompt_id}`}>Open Prompt</Link>
+              </Button>
+            ) : null}
             {canFollow ? (
               <Button
                 size="sm"
                 variant={isFollowing ? "secondary" : "outline"}
-                className="h-8 rounded-full"
+                className="h-9 rounded-full"
                 onClick={onFollow}
                 disabled={followingLoading}
               >
@@ -88,6 +93,11 @@ function CommunityItem({
                 {isFollowing ? "Following" : "Follow"}
               </Button>
             ) : null}
+          </div>
+        ) : null}
+        <div className="flex items-center gap-2">
+          {enableLikes ? <CommunityCommentsDialog postId={post.id} /> : null}
+          {enableLikes ? (
             <Button
               size="sm"
               variant="ghost"
@@ -98,10 +108,7 @@ function CommunityItem({
               <Heart className="h-4 w-4" />
               {likes}
             </Button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {enableLikes ? <CommunityCommentsDialog postId={post.id} /> : null}
+          ) : null}
           <WhatsAppShareButton
             className={enableLikes ? "flex-1" : "w-full"}
             shareText={`Check out this ${post.prompt_title} transformation on PromptGallery!`}

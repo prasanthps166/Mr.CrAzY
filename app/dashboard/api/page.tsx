@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -58,6 +59,11 @@ export default function DashboardApiPage() {
   );
 
   const activeCount = useMemo(() => rows.filter((row) => row.is_active).length, [rows]);
+  const showKeyControls =
+    rows.length > 1 ||
+    Boolean(search) ||
+    statusFilter !== "all" ||
+    sortBy !== "newest";
 
   const getToken = useCallback(async () => {
     if (!supabase) return null;
@@ -180,9 +186,14 @@ export default function DashboardApiPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10">
-      <div className="mb-8 space-y-2">
-        <h1 className="font-display text-4xl font-bold tracking-tight">API Keys</h1>
-        <p className="text-muted-foreground">Create and manage your PromptGallery API keys.</p>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-2">
+          <h1 className="font-display text-4xl font-bold tracking-tight">API Keys</h1>
+          <p className="text-muted-foreground">Create one key, keep the limit sensible, and rotate when needed.</p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href="/api-access">Open API Docs</Link>
+        </Button>
       </div>
 
       <Card className="mb-6 border-border/60 bg-card/70">
@@ -219,7 +230,7 @@ export default function DashboardApiPage() {
           <CardTitle className="font-display text-xl">Existing Keys</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -229,30 +240,37 @@ export default function DashboardApiPage() {
                 className="pl-9"
               />
             </div>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as ApiKeyStatusFilter)}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              aria-label="Filter by key status"
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="revoked">Revoked</option>
-            </select>
-            <select
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value as ApiKeySort)}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              aria-label="Sort keys"
-            >
-              <option value="newest">Newest</option>
-              <option value="most_calls">Most Calls</option>
-              <option value="name">Name A-Z</option>
-            </select>
-            <Button variant="outline" onClick={downloadKeysCsv} disabled={!visibleRows.length}>
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
+            {showKeyControls ? (
+              <details className="rounded-[1.2rem] border border-border/60 bg-background/70 px-4 py-3 text-sm text-foreground">
+                <summary className="cursor-pointer list-none font-medium">Filters and export</summary>
+                <div className="mt-4 grid gap-3 border-t border-border/60 pt-4 md:grid-cols-[1fr_1fr_auto]">
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as ApiKeyStatusFilter)}
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    aria-label="Filter by key status"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="revoked">Revoked</option>
+                  </select>
+                  <select
+                    value={sortBy}
+                    onChange={(event) => setSortBy(event.target.value as ApiKeySort)}
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    aria-label="Sort keys"
+                  >
+                    <option value="newest">Newest</option>
+                    <option value="most_calls">Most Calls</option>
+                    <option value="name">Name A-Z</option>
+                  </select>
+                  <Button variant="outline" onClick={downloadKeysCsv} disabled={!visibleRows.length}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                </div>
+              </details>
+            ) : null}
           </div>
 
           <div className="text-xs text-muted-foreground">

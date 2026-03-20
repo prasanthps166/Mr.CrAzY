@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowRight, Check, Flame, Sparkles, WandSparkles } from "lucide-react";
+import { Check, Flame, Sparkles, WandSparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,7 +84,7 @@ export default async function GeneratePage({ searchParams }: GeneratePageProps) 
         <div className="relative overflow-hidden rounded-[2.25rem] border border-[#3d2918]/18 bg-[#21160d] text-amber-50 shadow-[0_35px_90px_-48px_rgba(69,38,14,0.9)]">
           <div className="absolute left-8 top-6 h-28 w-28 rounded-full bg-primary/18 blur-3xl" />
           <div className="absolute bottom-8 right-8 h-28 w-28 rounded-full bg-[#ffcf9d]/12 blur-3xl" />
-          <div className="relative aspect-[16/10] min-h-[420px]">
+          <div className="relative aspect-[16/10] min-h-[360px] sm:min-h-[420px]">
             <Image
               src={selectedPrompt.example_image_url}
               alt={selectedPrompt.title}
@@ -122,8 +122,22 @@ export default async function GeneratePage({ searchParams }: GeneratePageProps) 
                 Upload one photo and turn it into a finished look.
               </h2>
               <p className="text-sm leading-7 text-muted-foreground">
-                Pick a prompt, upload a photo, and get a finished version fast.
+                Pick the look, upload once, and run the result you actually want.
               </p>
+            </div>
+
+            <div className="mt-6 grid gap-2 rounded-[1.5rem] border border-border/60 bg-background/65 p-4 sm:grid-cols-3">
+              {setupSteps.map((step, index) => (
+                <div key={step.title} className="flex items-start gap-3">
+                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-semibold text-primary">
+                    {index + 1}
+                  </span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">{step.title}</p>
+                    <p className="text-xs leading-5 text-muted-foreground">{step.description}</p>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -134,145 +148,103 @@ export default async function GeneratePage({ searchParams }: GeneratePageProps) 
                 triggerClassName="shadow-lg shadow-primary/20"
               />
               <Button size="lg" variant="outline" asChild>
-                <Link href={`/gallery/${selectedPrompt.id}`}>
-                  View Prompt Details
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
+                <Link href="/gallery">Browse More Looks</Link>
               </Button>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[1.35rem] border border-border/60 bg-background/70 p-4">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Category</p>
-                <p className="mt-2 text-sm font-semibold text-foreground">{selectedPrompt.category}</p>
-              </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)]">
               <div className="rounded-[1.35rem] border border-border/60 bg-background/70 p-4">
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Best for</p>
                 <p className="mt-2 text-sm font-semibold text-foreground">
                   {visibleTags.length ? visibleTags.join(", ") : "Portrait transformations"}
                 </p>
-              </div>
-              <div className="rounded-[1.35rem] border border-border/60 bg-background/70 p-4">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Flow</p>
-                <p className="mt-2 text-sm font-semibold text-foreground">Upload, generate, download, share.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[2rem] border border-border/60 bg-card/75 p-6">
-            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Before You Upload</p>
-            <div className="mt-4 space-y-4">
-              {uploadChecks.map((item) => (
-                <div key={item} className="flex gap-3 rounded-[1.35rem] border border-border/60 bg-background/65 p-4">
-                  <div className="rounded-full bg-primary/12 p-2 text-primary">
-                    <Check className="h-4 w-4" />
-                  </div>
-                  <p className="text-sm leading-6 text-foreground">{item}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {visibleTags.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="px-3 py-1 text-xs">
+                      #{tag}
+                    </Badge>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        {setupSteps.map((step, index) => (
-          <div
-            key={step.title}
-            className="rounded-[1.75rem] border border-border/60 bg-card/72 p-5 shadow-[0_18px_40px_-32px_rgba(42,29,18,0.7)]"
-          >
-            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              Step 0{index + 1}
-            </p>
-            <h2 className="mt-3 font-display text-2xl font-semibold leading-tight">{step.title}</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{step.description}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
-        <div className="rounded-[2rem] border border-border/60 bg-card/75 p-6">
-          <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">Selected Prompt</p>
-          <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">
-            Start from a look that already matches your taste.
-          </h2>
-          <p className="mt-3 text-sm leading-7 text-muted-foreground">
-            The best first result usually starts with a preview that already matches your taste.
-          </p>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            {visibleTags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="px-3 py-1 text-sm">
-                #{tag}
-              </Badge>
-            ))}
-          </div>
-
-          <div className="mt-6 rounded-[1.5rem] border border-border/60 bg-background/70 p-5">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Need more context?</p>
-            <p className="mt-2 text-sm leading-6 text-foreground">
-              Open the detail page to see the full prompt, tags, related looks, and community results.
-            </p>
-            <div className="mt-4">
-              <Button variant="outline" asChild>
-                <Link href={`/gallery/${selectedPrompt.id}`}>Inspect Prompt Detail</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-border/60 bg-card/75 p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                Prompt Picker
-              </p>
-              <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">Switch styles without leaving the page.</h2>
-            </div>
-            <Button variant="ghost" asChild>
-              <Link href="/gallery">Browse full gallery</Link>
-            </Button>
-          </div>
-
-          <div className="mt-6 grid gap-3">
-            {promptChoices.map((prompt) => {
-              const active = prompt.id === selectedPrompt.id;
-
-              return (
-                <Link
-                  key={prompt.id}
-                  href={`/generate?prompt=${prompt.id}`}
-                  className={`group grid grid-cols-[92px_minmax(0,1fr)_auto] items-center gap-4 rounded-[1.45rem] border p-3 transition ${
-                    active
-                      ? "border-primary/30 bg-primary/8 shadow-[0_18px_40px_-34px_rgba(199,102,43,0.65)]"
-                      : "border-border/60 bg-background/70 hover:border-primary/20 hover:bg-background/90"
-                  }`}
-                >
-                  <div className="relative aspect-[4/5] overflow-hidden rounded-[1rem]">
-                    <Image
-                      src={prompt.example_image_url}
-                      alt={prompt.title}
-                      fill
-                      className="object-cover transition duration-500 group-hover:scale-105"
-                      sizes="92px"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={active ? "default" : "secondary"}>{prompt.category}</Badge>
-                      <span className="text-xs text-muted-foreground">{formatCount(prompt.use_count)} uses</span>
+              </div>
+              <details className="rounded-[1.35rem] border border-border/60 bg-background/70 p-4">
+                <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">
+                  Photo checklist
+                </summary>
+                <div className="mt-4 space-y-3">
+                  {uploadChecks.map((item) => (
+                    <div key={item} className="flex gap-3">
+                      <div className="rounded-full bg-primary/12 p-2 text-primary">
+                        <Check className="h-4 w-4" />
+                      </div>
+                      <p className="text-sm leading-6 text-foreground">{item}</p>
                     </div>
-                    <h3 className="mt-2 line-clamp-1 font-display text-2xl leading-tight">{prompt.title}</h3>
-                    <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{prompt.description}</p>
+                  ))}
+                  <div className="pt-1">
+                    <Button variant="ghost" className="px-0" asChild>
+                      <Link href={`/gallery/${selectedPrompt.id}`}>Inspect prompt detail</Link>
+                    </Button>
                   </div>
-                  <span className="text-sm font-medium text-foreground">
-                    {active ? "Selected" : "Choose"}
-                  </span>
-                </Link>
-              );
-            })}
+                </div>
+              </details>
+            </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-[2rem] border border-border/60 bg-card/75 p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Prompt Picker
+            </p>
+            <h2 className="mt-2 font-display text-3xl font-semibold leading-tight">
+              Switch looks without losing momentum.
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
+              Stay on the generator, swap to a closer preview, and run the one that already feels right.
+            </p>
+          </div>
+          <Button variant="ghost" asChild>
+            <Link href={`/gallery/${selectedPrompt.id}`}>Open full prompt detail</Link>
+          </Button>
+        </div>
+
+        <div className="mt-6 flex gap-3 overflow-x-auto pb-2">
+          {promptChoices.map((prompt) => {
+            const active = prompt.id === selectedPrompt.id;
+
+            return (
+              <Link
+                key={prompt.id}
+                href={`/generate?prompt=${prompt.id}`}
+                className={`group min-w-[280px] max-w-[280px] rounded-[1.45rem] border p-3 transition ${
+                  active
+                    ? "border-primary/30 bg-primary/8 shadow-[0_18px_40px_-34px_rgba(199,102,43,0.65)]"
+                    : "border-border/60 bg-background/70 hover:border-primary/20 hover:bg-background/90"
+                }`}
+              >
+                <div className="relative aspect-[4/5] overflow-hidden rounded-[1rem]">
+                  <Image
+                    src={prompt.example_image_url}
+                    alt={prompt.title}
+                    fill
+                    className="object-cover transition duration-500 group-hover:scale-105"
+                    sizes="280px"
+                  />
+                </div>
+                <div className="mt-4 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={active ? "default" : "secondary"}>{prompt.category}</Badge>
+                    <span className="text-xs text-muted-foreground">{formatCount(prompt.use_count)} uses</span>
+                  </div>
+                  <h3 className="mt-2 line-clamp-1 font-display text-2xl leading-tight">{prompt.title}</h3>
+                  <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{prompt.description}</p>
+                  <p className="mt-4 text-sm font-medium text-foreground">{active ? "Selected" : "Choose this look"}</p>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
     </div>

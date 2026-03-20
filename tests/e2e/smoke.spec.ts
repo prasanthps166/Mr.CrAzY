@@ -17,6 +17,7 @@ test.describe("Public smoke", () => {
 
     await page.goto("/generate");
     await expect(page.getByRole("heading", { name: /Generate with/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Upload and Generate" })).toBeVisible();
   });
 
   test("seo routes respond", async ({ request }) => {
